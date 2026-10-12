@@ -1,0 +1,89 @@
+<Window x:Class="DialedKeyboard.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DialedKeyboard Settings" Width="620" Height="640" MinWidth="480" MinHeight="480"
+        WindowStartupLocation="CenterScreen" FontSize="14">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <DockPanel Margin="0,0,0,8">
+                <TextBlock Text="Opacity" Width="110" VerticalAlignment="Center"/>
+                <Slider x:Name="OpacitySlider" Minimum="0.3" Maximum="1" TickFrequency="0.05"
+                        IsSnapToTickEnabled="True" ValueChanged="OpacitySlider_ValueChanged"/>
+            </DockPanel>
+            <DockPanel Margin="0,0,0,8">
+                <TextBlock Text="Theme" Width="110" VerticalAlignment="Center"/>
+                <ComboBox x:Name="ThemeBox" Width="140" HorizontalAlignment="Left">
+                    <ComboBoxItem Content="Dark"/>
+                    <ComboBoxItem Content="Light"/>
+                </ComboBox>
+            </DockPanel>
+            <DockPanel Margin="0,0,0,8">
+                <CheckBox x:Name="SoundsBox" Content="Key sounds" Width="110" VerticalAlignment="Center"/>
+                <Slider x:Name="SoundVolumeSlider" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
+                        ToolTip="Key sound volume" IsEnabled="{Binding IsChecked, ElementName=SoundsBox}"/>
+            </DockPanel>
+            <CheckBox x:Name="AutoCapBox" Content="Capitalize the start of sentences" Margin="0,4"/>
+            <CheckBox x:Name="DoubleSpaceBox" Content="Double space types a period" Margin="0,4"/>
+            <CheckBox x:Name="SmartPunctBox" Content="Punctuation removes the space before it (word . → word. )" Margin="0,4"/>
+            <CheckBox x:Name="AutoExpandBox" Content="Expand shortcuts automatically when I press Space" Margin="0,4"/>
+        </StackPanel>
+
+        <TabControl Grid.Row="1" Margin="0,12,0,12">
+            <TabItem Header="Text shortcuts">
+                <DockPanel Margin="6">
+                    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,6" Foreground="Gray"
+                               Text="Type the shortcut and it appears as the first (green) suggestion. Press + Add shortcut, type the shortcut, then click the box next to it and type what it expands to."/>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="+  Add shortcut" FontSize="16" FontWeight="SemiBold" Padding="18,8" Margin="0,0,8,0"
+                                ToolTip="Adds a new row and puts the cursor in it" Click="AddShortcut_Click"/>
+                        <Button Content="−  Remove selected" FontSize="16" Padding="18,8"
+                                ToolTip="Removes the selected row" Click="RemoveShortcut_Click"/>
+                    </StackPanel>
+                    <DataGrid x:Name="ExpansionGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                              CanUserDeleteRows="True" HeadersVisibility="Column">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Shortcut" Binding="{Binding Abbreviation}" Width="120"/>
+                            <DataGridTextColumn Header="Expands to" Binding="{Binding Expansion}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="Memory">
+                <DockPanel Margin="6">
+                    <TextBlock x:Name="LearnedInfo" DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                    <CheckBox x:Name="PauseLearningBox" DockPanel.Dock="Top" Margin="0,0,0,8"
+                              Content="Pause learning (nothing new is remembered)"/>
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                        <TextBlock Text="Search" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="LearnedSearch" TextChanged="LearnedSearch_TextChanged"/>
+                    </DockPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="Forget selected" Padding="10,4" Margin="0,0,8,0" Click="ForgetSelected_Click"/>
+                        <Button Content="Forget everything…" Padding="10,4" Margin="0,0,8,0" Click="ForgetAll_Click"/>
+                        <Button Content="Open data folder" Padding="10,4" Click="OpenFolder_Click"/>
+                    </StackPanel>
+                    <ListView x:Name="LearnedList" SelectionMode="Extended">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Word" Width="220" DisplayMemberBinding="{Binding Word}"/>
+                                <GridViewColumn Header="Times typed" Width="100" DisplayMemberBinding="{Binding Count}"/>
+                                <GridViewColumn Header="Usually followed by" Width="200" DisplayMemberBinding="{Binding Next}"/>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Save" Width="90" Margin="0,0,8,0" IsDefault="True" Click="Save_Click"/>
+            <Button Content="Cancel" Width="90" IsCancel="True" Click="Cancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

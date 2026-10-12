@@ -1,0 +1,93 @@
+<Application x:Class="DialedKeyboard.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <!-- Theme brushes; replaced at runtime by App.ApplyTheme. -->
+        <SolidColorBrush x:Key="WindowBg" Color="#010101"/>
+        <SolidColorBrush x:Key="KeyBg" Color="#3A3A3C"/>
+        <SolidColorBrush x:Key="SpecialKeyBg" Color="#171719"/>
+        <SolidColorBrush x:Key="KeyHover" Color="#48484B"/>
+        <SolidColorBrush x:Key="KeyPressed" Color="#5E5E62"/>
+        <SolidColorBrush x:Key="KeyFg" Color="#F5F5F7"/>
+        <SolidColorBrush x:Key="KeySubFg" Color="#9A999E"/>
+        <SolidColorBrush x:Key="AccentFg" Color="#5E93F5"/>
+        <SolidColorBrush x:Key="AccentBg" Color="#3B5BDB"/>
+        <SolidColorBrush x:Key="SuggestBg" Color="#171719"/>
+        <SolidColorBrush x:Key="ExpansionBg" Color="#2F6B46"/>
+        <SolidColorBrush x:Key="PhraseBg" Color="#5B3F8C"/>
+
+        <sys:Double x:Key="KeyFontSize">20</sys:Double>
+        <sys:Double x:Key="KeyLabelFontSize">17</sys:Double>
+        <sys:Double x:Key="KeySmallFontSize">13</sys:Double>
+        <Thickness x:Key="KeyMargin">4,8</Thickness>
+
+        <Style x:Key="KeyButton" TargetType="ButtonBase">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Background" Value="{DynamicResource KeyBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource KeyFg}"/>
+            <Setter Property="FontSize" Value="{DynamicResource KeyFontSize}"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="Margin" Value="{DynamicResource KeyMargin}"/>
+            <Setter Property="Padding" Value="4,0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ButtonBase">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Tag" Value="exp">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ExpansionBg}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="phrase">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource PhraseBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource KeyHover}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="on">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource AccentBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource KeyPressed}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.35"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="BarButton" TargetType="Button">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Foreground" Value="{DynamicResource KeySubFg}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Margin" Value="2,0"/>
+            <Setter Property="MinWidth" Value="30"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="Transparent" CornerRadius="5" Padding="8,2">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource KeyHover}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="on">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource AccentBg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Application.Resources>
+</Application>

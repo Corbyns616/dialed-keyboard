@@ -1,0 +1,66 @@
+<Window x:Class="DialedKeyboard.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DialedKeyboard"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowActivated="False" ShowInTaskbar="False" ResizeMode="NoResize"
+        Stylus.IsPressAndHoldEnabled="False"
+        Width="600" Height="456" MinWidth="360" MinHeight="260">
+    <Window.Resources>
+        <!-- Invisible grab strips along the edges for resizing. -->
+        <ControlTemplate x:Key="EdgeThumb" TargetType="Thumb">
+            <Border Background="Transparent"/>
+        </ControlTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Border Background="{DynamicResource WindowBg}" CornerRadius="10"
+                BorderBrush="{DynamicResource SpecialKeyBg}" BorderThickness="1">
+            <Grid Margin="6,2,6,6">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="30"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Title bar: drag to move -->
+                <Grid x:Name="TitleBar" Background="Transparent" Cursor="SizeAll"
+                      MouseLeftButtonDown="TitleBar_MouseLeftButtonDown"
+                      MouseMove="TitleBar_MouseMove"
+                      MouseLeftButtonUp="TitleBar_MouseLeftButtonUp">
+                    <TextBlock Text="⠿  DialedKeyboard" Foreground="{DynamicResource KeySubFg}"
+                               VerticalAlignment="Center" Margin="6,0" FontSize="12"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Cursor="Arrow">
+                        <Button Content="A−" ToolTip="Make the keyboard smaller" Style="{StaticResource BarButton}" Click="Smaller_Click"/>
+                        <Button Content="A+" ToolTip="Make the keyboard bigger" Style="{StaticResource BarButton}" Click="Bigger_Click"/>
+                        <Button Content="⚙" ToolTip="Settings" Style="{StaticResource BarButton}" Click="Settings_Click"/>
+                        <Button Content="Minimize" ToolTip="Hide the keyboard (the glowing ⌨ button or Ctrl+Alt+K brings it back)" Style="{StaticResource BarButton}" Click="Minimize_Click"/>
+                        <Button Content="✕" ToolTip="Exit" Style="{StaticResource BarButton}" Click="Exit_Click"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Prediction bar + key rows, built in code -->
+                <Grid x:Name="KeyArea" Grid.Row="1" SizeChanged="KeyArea_SizeChanged"/>
+            </Grid>
+        </Border>
+
+        <!-- Resize from any edge or corner -->
+        <Thumb Tag="L" Template="{StaticResource EdgeThumb}" Width="6" HorizontalAlignment="Left" Margin="0,12" Cursor="SizeWE" DragDelta="Edge_DragDelta" DragCompleted="Edge_DragCompleted"/>
+        <Thumb Tag="R" Template="{StaticResource EdgeThumb}" Width="6" HorizontalAlignment="Right" Margin="0,12" Cursor="SizeWE" DragDelta="Edge_DragDelta" DragCompleted="Edge_DragCompleted"/>
+        <Thumb Tag="T" Template="{StaticResource EdgeThumb}" Height="5" VerticalAlignment="Top" Margin="12,0" Cursor="SizeNS" DragDelta="Edge_DragDelta" DragCompleted="Edge_DragCompleted"/>
+        <Thumb Tag="B" Template="{StaticResource EdgeThumb}" Height="6" VerticalAlignment="Bottom" Margin="12,0" Cursor="SizeNS" DragDelta="Edge_DragDelta" DragCompleted="Edge_DragCompleted"/>
+        <Thumb Tag="TL" Template="{StaticResource EdgeThumb}" Width="12" Height="12" HorizontalAlignment="Left" VerticalAlignment="Top" Cursor="SizeNWSE" DragDelta="Edge_DragDelta" DragCompleted="Edge_DragCompleted"/>
+        <Thumb Tag="TR" Template="{StaticResource EdgeThumb}" Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Top" Cursor="SizeNESW" DragDelta="Edge_DragDelta" DragCompleted="Edge_DragCompleted"/>
+        <Thumb Tag="BL" Template="{StaticResource EdgeThumb}" Width="12" Height="12" HorizontalAlignment="Left" VerticalAlignment="Bottom" Cursor="SizeNESW" DragDelta="Edge_DragDelta" DragCompleted="Edge_DragCompleted"/>
+        <!-- Visible grip in the bottom-right corner -->
+        <Thumb Tag="BR" Width="20" Height="20" HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="SizeNWSE"
+               DragDelta="Edge_DragDelta" DragCompleted="Edge_DragCompleted" ToolTip="Drag to resize">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb">
+                    <Grid Background="Transparent">
+                        <Path Data="M 17,5 L 17,17 L 5,17 Z" Fill="{DynamicResource KeySubFg}" Opacity="0.7"/>
+                    </Grid>
+                </ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
+    </Grid>
+</Window>
