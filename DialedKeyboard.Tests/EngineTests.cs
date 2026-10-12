@@ -280,3 +280,33 @@ public class EngineTests
         }
     }
 }
+
+public class ClipboardHistoryTests
+{
+    [Fact]
+    public void NewestFirst_DuplicatesMoveToTop_CappedAtMax()
+    {
+        var h = new ClipboardHistory();
+        h.Add("one"); h.Add("two"); h.Add("one");
+        Assert.Equal(new[] { "one", "two" }, h.Items);
+
+        for (int i = 0; i < ClipboardHistory.MaxItems + 5; i++) h.Add("item " + i);
+        Assert.Equal(ClipboardHistory.MaxItems, h.Items.Count);
+        Assert.Equal("item " + (ClipboardHistory.MaxItems + 4), h.Items[0]);
+    }
+
+    [Fact]
+    public void SkipsBlankAndHugeText()
+    {
+        var h = new ClipboardHistory();
+        h.Add("  \n "); h.Add(null); h.Add(new string('x', ClipboardHistory.MaxLength + 1));
+        Assert.Empty(h.Items);
+    }
+
+    [Fact]
+    public void PreviewFlattensLines()
+    {
+        Assert.Equal("first ↵ second", ClipboardHistory.Preview("  first\r\n\r\n  second  "));
+        Assert.EndsWith("…", ClipboardHistory.Preview(new string('a', 300), 50));
+    }
+}

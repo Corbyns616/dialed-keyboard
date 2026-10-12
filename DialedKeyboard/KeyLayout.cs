@@ -8,6 +8,8 @@ public enum KeyKind
     /// <summary>Presses <see cref="KeyDef.Vk"/> (Esc, Tab, arrows…) with any held modifiers.</summary>
     Nav,
     Shift, Ctrl, Alt, Win, Page, Spacer,
+    /// <summary>Opens the clipboard panel: Copy/Cut/Paste/Select all and recent copies.</summary>
+    Clipboard,
 }
 
 /// <param name="Hint">The small symbol in the corner, typed by a long press or right-click.</param>
@@ -63,6 +65,7 @@ public static class KeyLayout
         Special(KeyKind.Nav, "Esc", vk: KeySender.VK_ESCAPE),
         Special(KeyKind.Ctrl, "Ctrl"),
         Special(KeyKind.Alt, "Alt"),
+        Special(KeyKind.Clipboard, "Clipboard"),
     };
 
     /// <summary>Symbols missing from the ABC page, plus the desktop keys a phone doesn't have.</summary>

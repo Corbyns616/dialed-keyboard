@@ -34,7 +34,14 @@ public partial class MainWindow : Window
     bool _rightCtrlDown;
     readonly DispatcherTimer _backspaceRepeat = new();
     bool _backspaceHeld;
-    Grid _lettersPage = null!, _symbolsPage = null!;
+    Grid _lettersPage = null!, _symbolsPage = null!, _clipPage = null!;
+    /// <summary>The letters or symbols page to go back to when the clipboard panel closes.</summary>
+    Grid _keyPage = null!;
+    readonly ClipboardHistory _clips = new();
+    UniformGrid _clipList = null!;
+    ScrollViewer _clipScroll = null!;
+    TextBlock _clipEmpty = null!;
+    ButtonBase? _clipKey;
     bool _ctrl, _alt, _win;
     bool _dragging;
     Point _dragStart;
@@ -69,6 +76,10 @@ public partial class MainWindow : Window
         HwndSource.FromHwnd(hwnd).AddHook(WndProc);
         NativeMethods.RegisterHotKey(hwnd, ToggleHotkeyId,
             NativeMethods.MOD_CONTROL | NativeMethods.MOD_ALT | NativeMethods.MOD_NOREPEAT, 'K');
+
+        // Remember what gets copied, in any app, for the clipboard panel.
+        NativeMethods.AddClipboardFormatListener(hwnd);
+        CaptureClipboard();
     }
 
     const int ToggleHotkeyId = 1;
@@ -79,6 +90,10 @@ public partial class MainWindow : Window
         {
             _app.ToggleKeyboard();
             handled = true;
+        }
+        else if (msg == NativeMethods.WM_CLIPBOARDUPDATE)
+        {
+            Dispatcher.BeginInvoke(CaptureClipboard);
         }
         return IntPtr.Zero;
     }
@@ -100,6 +115,7 @@ public partial class MainWindow : Window
         HoldRightCtrl(false);
         ReleaseBackspace();
         NativeMethods.UnregisterHotKey(new WindowInteropHelper(this).Handle, ToggleHotkeyId);
+        NativeMethods.RemoveClipboardFormatListener(new WindowInteropHelper(this).Handle);
         _watcher?.Dispose();
         base.OnClosed(e);
     }
@@ -181,6 +197,10 @@ public partial class MainWindow : Window
         _lettersPage = BuildPage(KeyLayout.Letters);
         _symbolsPage = BuildPage(KeyLayout.Symbols);
         _symbolsPage.Visibility = Visibility.Collapsed;
+        _keyPage = _lettersPage;
+        _clipPage = BuildClipboardPage();
+        _clips.Changed += RefreshClipboardList;
+        RefreshClipboardList();
     }
 
     Grid BuildPage(KeyDef[][] rows)
@@ -285,6 +305,12 @@ public partial class MainWindow : Window
             else if (def.Kind == KeyKind.Enter)
             {
                 btn.Content = KeyIcon("M19.5,6 L19.5,14 L5,14 M9.5,9.5 L5,14 L9.5,18.5", out _);
+            }
+            else if (def.Kind == KeyKind.Clipboard)
+            {
+                btn.Content = KeyIcon("M8.5,5 L6,5 L6,21 L18,21 L18,5 L15.5,5 M9,3 L15,3 L15,7 L9,7 Z M9,11.5 L15,11.5 M9,15.5 L13.5,15.5", out _);
+                btn.ToolTip = "Clipboard: copy, paste and recent copies";
+                _clipKey = btn;
             }
             if (def.Kind is KeyKind.Ctrl or KeyKind.Alt or KeyKind.Win)
                 _modifierKeys[def.Kind] = btn;
@@ -392,6 +418,192 @@ public partial class MainWindow : Window
             OnKey(def with { Base = hint, Hint = null });
     }
 
+    // ---------- Clipboard panel ----------
+
+    const ushort VK_A = 0x41, VK_C = 0x43, VK_V = 0x56, VK_X = 0x58;
+
+    /// <summary>
+    /// Big Copy / Cut / Paste / Select all buttons on top, recent copies below (newest first).
+    /// Tap a copy to paste it; right-click one to remove it from the list.
+    /// </summary>
+    Grid BuildClipboardPage()
+    {
+        var page = new Grid { Visibility = Visibility.Collapsed };
+        Grid.SetRow(page, 1);
+        page.RowDefinitions.Add(new RowDefinition { Height = new GridLength(KeyLayout.RowHeights[0], GridUnitType.Star) });
+        page.RowDefinitions.Add(new RowDefinition { Height = new GridLength(KeyLayout.RowHeights.Sum() - KeyLayout.RowHeights[0], GridUnitType.Star) });
+
+        var actions = new Grid();
+        void Action(string label, double width, Action run, string tip)
+        {
+            actions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(width, GridUnitType.Star) });
+            var text = new TextBlock { Text = label };
+            text.SetResourceReference(TextBlock.FontSizeProperty, "KeyLabelFontSize");
+            var btn = new Button { Content = text, ClickMode = ClickMode.Press, ToolTip = tip };
+            btn.Style = (Style)FindResource("KeyButton");
+            btn.SetResourceReference(BackgroundProperty, "SpecialKeyBg");
+            btn.PreviewMouseLeftButtonDown += (_, _) => _app.Sounds.Play("");
+            btn.Click += (_, _) => run();
+            Grid.SetColumn(btn, actions.Children.Count);
+            actions.Children.Add(btn);
+        }
+        Action("Copy", 1.25, () => CtrlCombo(VK_C), "Ctrl+C");
+        Action("Cut", 1, () => CtrlCombo(VK_X), "Ctrl+X");
+        Action("Paste", 1.25, () => CtrlCombo(VK_V), "Ctrl+V");
+        Action("Select all", 1.75, () => CtrlCombo(VK_A), "Ctrl+A");
+        Action("▲", 1, () => ScrollClips(-1), "Scroll up");
+        Action("▼", 1, () => ScrollClips(1), "Scroll down");
+        Action("Clear", 1.25, () => _clips.Clear(), "Forget the recent copies (your current clipboard stays)");
+        Action("ABC", 1.5, () => { ShowPage(_keyPage); RefreshKeys(); }, "Back to the keys");
+        page.Children.Add(actions);
+
+        _clipList = new UniformGrid { Columns = 2, VerticalAlignment = VerticalAlignment.Top };
+        _clipScroll = new ScrollViewer
+        {
+            Content = _clipList,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            PanningMode = PanningMode.VerticalOnly,
+        };
+        Grid.SetRow(_clipScroll, 1);
+        page.Children.Add(_clipScroll);
+
+        _clipEmpty = new TextBlock
+        {
+            Text = "Nothing copied yet. Copy something in any app and it shows up here.",
+            TextWrapping = TextWrapping.Wrap,
+            TextAlignment = TextAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(20),
+        };
+        _clipEmpty.SetResourceReference(TextBlock.FontSizeProperty, "KeyLabelFontSize");
+        _clipEmpty.SetResourceReference(TextBlock.ForegroundProperty, "KeySubFg");
+        Grid.SetRow(_clipEmpty, 1);
+        page.Children.Add(_clipEmpty);
+
+        KeyArea.Children.Add(page);
+        return page;
+    }
+
+    void RefreshClipboardList()
+    {
+        _clipList.Children.Clear();
+        foreach (string item in _clips.Items)
+        {
+            var text = new TextBlock
+            {
+                Text = ClipboardHistory.Preview(item),
+                TextWrapping = TextWrapping.Wrap,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            text.SetResourceReference(TextBlock.FontSizeProperty, "KeySmallFontSize");
+            var btn = new Button
+            {
+                Content = text,
+                ClickMode = ClickMode.Press,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Padding = new Thickness(10, 2, 10, 2),
+                ToolTip = item.Length > 600 ? item[..600] + "…" : item,
+            };
+            btn.Style = (Style)FindResource("KeyButton");
+            btn.SetResourceReference(HeightProperty, "ClipItemHeight");
+            btn.PreviewMouseLeftButtonDown += (_, _) => _app.Sounds.Play("space");
+            btn.Click += (_, _) => PasteClip(item);
+            btn.PreviewMouseRightButtonUp += (_, e) =>
+            {
+                _clips.Remove(item);
+                e.Handled = true;
+            };
+            _clipList.Children.Add(btn);
+        }
+        _clipEmpty.Visibility = _clips.Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Ctrl plus a letter (copy, paste…); the caret or text may change, so stop trusting our copy of it.</summary>
+    void CtrlCombo(ushort vk)
+    {
+        _sender.Press(vk, new[] { KeySender.VK_CONTROL });
+        _typing.Reset();
+    }
+
+    void ScrollClips(int direction)
+    {
+        double step = Math.Max(40, _clipScroll.ViewportHeight * 0.8);
+        _clipScroll.ScrollToVerticalOffset(_clipScroll.VerticalOffset + direction * step);
+    }
+
+    /// <summary>Puts a recent copy back on the clipboard and pastes it, then returns to the keys.</summary>
+    void PasteClip(string text)
+    {
+        if (TrySetClipboard(text))
+        {
+            CtrlCombo(VK_V);
+        }
+        else
+        {
+            // Clipboard busy: type it out instead.
+            _sender.Text(text);
+            _typing.Reset();
+        }
+        ShowPage(_keyPage);
+        RefreshKeys();
+    }
+
+    static bool TrySetClipboard(string text)
+    {
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                Clipboard.SetDataObject(text, true);
+                return true;
+            }
+            catch (System.Runtime.InteropServices.ExternalException)
+            {
+                Thread.Sleep(25);
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Adds the clipboard's text to the recent copies. Skips anything an app marks as private
+    /// (password managers set these flags so clipboard history tools leave passwords alone).
+    /// </summary>
+    void CaptureClipboard()
+    {
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                var data = Clipboard.GetDataObject();
+                if (data == null) return;
+                if (data.GetDataPresent("ExcludeClipboardContentFromMonitorProcessing")) return;
+                if (data.GetDataPresent("CanIncludeInClipboardHistory") &&
+                    data.GetData("CanIncludeInClipboardHistory") is MemoryStream flag &&
+                    flag.Length >= 4 && BitConverter.ToInt32(flag.ToArray(), 0) == 0)
+                    return;
+                if (data.GetDataPresent(DataFormats.UnicodeText))
+                    _clips.Add(data.GetData(DataFormats.UnicodeText) as string);
+                return;
+            }
+            catch (System.Runtime.InteropServices.ExternalException)
+            {
+                Thread.Sleep(25); // another app has the clipboard open; try again shortly
+            }
+        }
+    }
+
+    void ShowPage(Grid page)
+    {
+        if (page != _clipPage) _keyPage = page;
+        foreach (var p in new[] { _lettersPage, _symbolsPage, _clipPage })
+            p.Visibility = p == page ? Visibility.Visible : Visibility.Collapsed;
+        if (page == _clipPage) _clipScroll.ScrollToTop();
+    }
+
     // ---------- Key handling ----------
 
     void OnKey(KeyDef def)
@@ -444,9 +656,10 @@ public partial class MainWindow : Window
                 }
                 break;
             case KeyKind.Page:
-                bool symbols = _symbolsPage.Visibility != Visibility.Visible;
-                _symbolsPage.Visibility = symbols ? Visibility.Visible : Visibility.Collapsed;
-                _lettersPage.Visibility = symbols ? Visibility.Collapsed : Visibility.Visible;
+                ShowPage(_symbolsPage.Visibility == Visibility.Visible ? _lettersPage : _symbolsPage);
+                break;
+            case KeyKind.Clipboard:
+                ShowPage(_clipPage.Visibility == Visibility.Visible ? _keyPage : _clipPage);
                 break;
             case KeyKind.Ctrl:
                 // A sticky Right Ctrl: the first tap holds it down, the next tap lets it go.
@@ -505,6 +718,7 @@ public partial class MainWindow : Window
         SetOn(KeyKind.Ctrl, _ctrl);
         SetOn(KeyKind.Alt, _alt);
         SetOn(KeyKind.Win, _win);
+        if (_clipKey != null) _clipKey.Tag = _clipPage.Visibility == Visibility.Visible ? "on" : null;
 
         var list = _typing.GetSuggestions(SuggestionCount);
         for (int i = 0; i < SuggestionCount; i++)
@@ -543,6 +757,7 @@ public partial class MainWindow : Window
         Resources["KeySmallFontSize"] = Math.Clamp(size * 0.18, 7, 20);
         double gapX = pitch * 0.073, gapY = rowHeight * 0.11;
         Resources["KeyMargin"] = new Thickness(gapX, gapY, gapX, gapY);
+        Resources["ClipItemHeight"] = Math.Max(20, rowHeight - 2 * gapY);
     }
 
     void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
