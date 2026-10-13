@@ -18,7 +18,10 @@ public partial class MainWindow : Window
     /// <summary>Height of the suggestion strip, relative to a key row.</summary>
     const double SuggestionRowHeight = 0.8;
 
-    sealed record CharKey(KeyDef Def, TextBlock Main);
+    sealed record CharKey(KeyDef Def, TextBlock Main, ButtonBase Key);
+
+    /// <summary>How far (in key widths) a press has to travel before it counts as a swipe rather than a tap.</summary>
+    const double SwipeStartDistance = 0.45;
 
     readonly App _app;
     readonly TypingController _typing;
@@ -43,6 +46,13 @@ public partial class MainWindow : Window
     TextBlock _clipEmpty = null!;
     ButtonBase? _clipKey;
     bool _ctrl, _alt, _win;
+    // Swipe typing on the ABC page.
+    readonly List<Point> _swipePath = new();
+    readonly Polyline _swipeTrail = new();
+    bool _swipeArmed, _swiping, _swipeSuppressClick;
+    /// <summary>The last swiped word as typed, and the other guesses offered in its place.</summary>
+    string? _swipedWord;
+    List<string> _swipeChoices = new();
     bool _dragging;
     Point _dragStart;
     InputWatcher? _watcher;
@@ -195,6 +205,7 @@ public partial class MainWindow : Window
         KeyArea.Children.Add(strip);
 
         _lettersPage = BuildPage(KeyLayout.Letters);
+        SetUpSwipe();
         _symbolsPage = BuildPage(KeyLayout.Symbols);
         _symbolsPage.Visibility = Visibility.Collapsed;
         _keyPage = _lettersPage;
@@ -279,7 +290,7 @@ public partial class MainWindow : Window
             btn.HorizontalContentAlignment = HorizontalAlignment.Stretch;
             btn.VerticalContentAlignment = VerticalAlignment.Stretch;
             btn.Content = content;
-            _charKeys.Add(new CharKey(def, main));
+            _charKeys.Add(new CharKey(def, main, btn));
         }
         else
         {
@@ -318,6 +329,8 @@ public partial class MainWindow : Window
 
         btn.Click += (_, _) =>
         {
+            if (_swipeSuppressClick)
+                return; // a swipe ended on this key; it already typed its word
             if (_holdTyped && def.Hint != null)
             {
                 _holdTyped = false; // the long press already typed the corner symbol
@@ -416,6 +429,120 @@ public partial class MainWindow : Window
     {
         if (def.Hint is char hint)
             OnKey(def with { Base = hint, Hint = null });
+    }
+
+    // ---------- Swipe typing ----------
+
+    /// <summary>
+    /// Press on a letter and slide across the others to type a whole word. The page watches
+    /// the pointer on its way to the keys (preview events), so the pressed key keeps working
+    /// as a normal tap or long-press until the pointer has clearly moved.
+    /// </summary>
+    void SetUpSwipe()
+    {
+        _swipeTrail.IsHitTestVisible = false;
+        _swipeTrail.StrokeLineJoin = PenLineJoin.Round;
+        _swipeTrail.StrokeStartLineCap = PenLineCap.Round;
+        _swipeTrail.StrokeEndLineCap = PenLineCap.Round;
+        _swipeTrail.SetResourceReference(Shape.StrokeProperty, "AccentFg");
+        var overlay = new Canvas { IsHitTestVisible = false, Children = { _swipeTrail } };
+        Grid.SetRowSpan(overlay, KeyLayout.Letters.Length);
+        _lettersPage.Children.Add(overlay);
+
+        _lettersPage.PreviewMouseLeftButtonDown += Swipe_Down;
+        _lettersPage.PreviewMouseMove += Swipe_Move;
+        _lettersPage.PreviewMouseLeftButtonUp += Swipe_Up;
+        _lettersPage.LostMouseCapture += (_, _) => { if (_swiping) CancelSwipe(); };
+    }
+
+    double KeyPitch => _lettersPage.ActualWidth / 10;
+
+    void Swipe_Down(object sender, MouseButtonEventArgs e)
+    {
+        _swiping = false;
+        _swipePath.Clear();
+        // With Ctrl/Alt/⊞ on, letters are shortcuts, so no swiping.
+        _swipeArmed = !(_ctrl || _alt || _win) && IsLetterKey(e.OriginalSource as DependencyObject);
+        if (_swipeArmed) _swipePath.Add(e.GetPosition(_lettersPage));
+    }
+
+    void Swipe_Move(object sender, MouseEventArgs e)
+    {
+        if (!_swipeArmed || e.LeftButton != MouseButtonState.Pressed) return;
+        var p = e.GetPosition(_lettersPage);
+        _swipePath.Add(p);
+        if (_swiping)
+        {
+            _swipeTrail.Points.Add(p);
+            return;
+        }
+        if ((p - _swipePath[0]).Length < KeyPitch * SwipeStartDistance) return;
+
+        // It's a swipe: stop the pressed key's long-press and start drawing the trail.
+        _swiping = true;
+        _held = null;
+        _holdTimer.Stop();
+        _swipeTrail.BeginAnimation(OpacityProperty, null);
+        _swipeTrail.Opacity = 0.75;
+        _swipeTrail.StrokeThickness = Math.Max(4, KeyPitch * 0.14);
+        _swipeTrail.Points = new PointCollection(_swipePath);
+    }
+
+    void Swipe_Up(object sender, MouseButtonEventArgs e)
+    {
+        _swipeArmed = false;
+        if (!_swiping) return;
+        _swiping = false;
+
+        // The key under the pointer is about to see this release as a click; swallow it.
+        _swipeSuppressClick = true;
+        Dispatcher.BeginInvoke(() => _swipeSuppressClick = false, DispatcherPriority.Input);
+        FadeTrail();
+
+        var path = _swipePath.Select(p => new SwipePoint(p.X, p.Y)).ToList();
+        var guesses = _typing.DecodeSwipe(path, LetterCentres(), KeyPitch, SuggestionCount + 1);
+        if (guesses.Count == 0) return;
+        _app.Sounds.Play("space");
+        _swipedWord = _typing.TypeSwipedWord(guesses[0]);
+        _swipeChoices = guesses.Skip(1).ToList();
+        RefreshKeys();
+    }
+
+    void CancelSwipe()
+    {
+        _swiping = _swipeArmed = false;
+        FadeTrail();
+    }
+
+    void FadeTrail()
+    {
+        var fade = new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(220));
+        fade.Completed += (_, _) => { if (!_swiping) _swipeTrail.Points.Clear(); };
+        _swipeTrail.BeginAnimation(OpacityProperty, fade);
+    }
+
+    bool IsLetterKey(DependencyObject? element)
+    {
+        while (element != null && element != _lettersPage)
+        {
+            if (element is ButtonBase button)
+                return _charKeys.Any(k => k.Key == button && k.Def.Base is >= 'a' and <= 'z');
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return false;
+    }
+
+    /// <summary>Where each letter key's centre is on the ABC page right now (it changes as the window resizes).</summary>
+    Dictionary<char, SwipePoint> LetterCentres()
+    {
+        var centres = new Dictionary<char, SwipePoint>();
+        foreach (var k in _charKeys)
+        {
+            if (k.Def.Base is not (>= 'a' and <= 'z') || !k.Key.IsVisible) continue;
+            var c = k.Key.TranslatePoint(new Point(k.Key.ActualWidth / 2, k.Key.ActualHeight / 2), _lettersPage);
+            centres[k.Def.Base] = new SwipePoint(c.X, c.Y);
+        }
+        return centres;
     }
 
     // ---------- Clipboard panel ----------
@@ -608,6 +735,7 @@ public partial class MainWindow : Window
 
     void OnKey(KeyDef def)
     {
+        _swipedWord = null; // any other key moves on from the last swipe's choices
         bool mods = _ctrl || _alt || _win;
         switch (def.Kind)
         {
@@ -696,9 +824,22 @@ public partial class MainWindow : Window
 
     void AcceptSuggestion(int index)
     {
-        if (_suggestions[index] is { } s)
-            _typing.Accept(s);
+        if (_suggestions[index] is not { } s) return;
+        if (ShowingSwipeChoices && _typing.ReplaceSwipedWord(_swipedWord!, s.Text) is { } typed)
+        {
+            // Keep the word it replaced on offer, in case that was right after all.
+            _swipeChoices.Remove(s.Text);
+            _swipeChoices.Insert(0, _swipedWord!);
+            _swipedWord = typed;
+            RefreshKeys();
+            return;
+        }
+        _typing.Accept(s);
     }
+
+    /// <summary>Right after a swipe, the suggestion bar offers the other guesses for that word.</summary>
+    bool ShowingSwipeChoices =>
+        _swipedWord != null && _swipeChoices.Count > 0 && _typing.SwipedWordIsLast(_swipedWord);
 
     void RefreshKeys()
     {
@@ -720,7 +861,9 @@ public partial class MainWindow : Window
         SetOn(KeyKind.Win, _win);
         if (_clipKey != null) _clipKey.Tag = _clipPage.Visibility == Visibility.Visible ? "on" : null;
 
-        var list = _typing.GetSuggestions(SuggestionCount);
+        var list = ShowingSwipeChoices
+            ? _swipeChoices.Take(SuggestionCount).Select(w => new Suggestion(w, false)).ToList()
+            : _typing.GetSuggestions(SuggestionCount);
         for (int i = 0; i < SuggestionCount; i++)
         {
             var btn = _suggestButtons[i];

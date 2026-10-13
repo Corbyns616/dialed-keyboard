@@ -195,6 +195,26 @@ public sealed class WordPredictor
         return best.Value >= minCount && best.Value * 2 > total ? best.Key : null;
     }
 
+    /// <summary>
+    /// Words swipe typing can produce: the bundled list, or (<paramref name="userOnly"/>) your
+    /// own words that aren't in it, once you've used them twice.
+    /// </summary>
+    public IEnumerable<(string Lower, string Display)> SwipeVocabulary(bool userOnly)
+    {
+        if (!userOnly)
+        {
+            foreach (var e in _entries)
+                yield return (e.Lower, _user.Display(e.Lower) ?? e.Display);
+            yield break;
+        }
+        foreach (var (key, entry) in _user.Words)
+            if (entry.Count >= 2 && !_byLower.ContainsKey(key))
+                yield return (key, entry.Display ?? key);
+    }
+
+    /// <summary>How likely <paramref name="lower"/> is here, from its frequency, your history and the words before it.</summary>
+    public double Likelihood(string lower, string? prev2, string? prev) => Score(lower, BaseScore(lower), prev2, prev);
+
     double Score(string lower, double baseScore, string? prev2, string? prev) =>
         baseScore
         + UserWeight * Math.Log(1 + _user.Count(lower))

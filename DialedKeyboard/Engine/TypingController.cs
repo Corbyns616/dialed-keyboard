@@ -38,6 +38,7 @@ public sealed class TypingController
     readonly UserDictionary _user;
     readonly Expander _expander;
     readonly StringBuilder _buf = new();
+    SwipeDecoder? _swipe;
     bool _startIsSentence = true;
     bool _softSpace; // the last char is a space we added after a word
 
@@ -233,6 +234,67 @@ public sealed class TypingController
         Emit(" ");
         _softSpace = true;
         Changed();
+    }
+
+    /// <summary>Likely words for a swipe across the letter keys, best first, using the words before the caret.</summary>
+    public List<string> DecodeSwipe(IReadOnlyList<SwipePoint> path, IReadOnlyDictionary<char, SwipePoint> keys, double keyWidth, int max)
+    {
+        _swipe ??= new SwipeDecoder(_predictor);
+        string word = CurrentWord;
+        // A half-typed word gets finished with a space before the swiped one, so it becomes the context.
+        var (prev2, prev) = word.Length > 0
+            ? (WordBefore(_buf.Length - word.Length), word)
+            : ContextBefore(_buf.Length);
+        return _swipe.Decode(path, keys, keyWidth, prev2, prev, max);
+    }
+
+    /// <summary>
+    /// Types a swiped word as a whole word, the way phone keyboards do: a space before it if
+    /// needed, capitalised like a typed word, and a space after (punctuation pulls that back).
+    /// Returns the text as typed, for <see cref="ReplaceSwipedWord"/>.
+    /// </summary>
+    public string TypeSwipedWord(string word)
+    {
+        if (CurrentWord.Length > 0)
+            Space();
+        if (_buf.Length > 0 && !char.IsWhiteSpace(_buf[^1]) && "([{\"'".IndexOf(_buf[^1]) < 0)
+            Emit(" ");
+        string text = CapsLock ? word.ToUpperInvariant()
+            : ShiftOnce || AutoCapNow ? Capitalize(word)
+            : word;
+        ShiftOnce = false;
+        var (prev2, prev) = ContextBefore(_buf.Length);
+        Emit(text);
+        LearnWords(prev2, prev, text);
+        Emit(" ");
+        _softSpace = true;
+        Changed();
+        return text;
+    }
+
+    /// <summary>
+    /// Swaps the word just swiped (<paramref name="typed"/>, still followed by its space) for
+    /// another candidate. Returns the new text, or null if the text has moved on since.
+    /// </summary>
+    public string? ReplaceSwipedWord(string typed, string replacement)
+    {
+        if (!SwipedWordIsLast(typed)) return null;
+        Back(typed.Length + 1);
+        string text = MatchCase(typed, replacement);
+        var (prev2, prev) = ContextBefore(_buf.Length);
+        Emit(text);
+        LearnWords(prev2, prev, text);
+        Emit(" ");
+        _softSpace = true;
+        Changed();
+        return text;
+    }
+
+    /// <summary>True while <paramref name="typed"/> plus its space is still the last thing typed.</summary>
+    public bool SwipedWordIsLast(string typed)
+    {
+        int n = typed.Length + 1;
+        return _buf.Length >= n && _buf[^1] == ' ' && _buf.ToString(_buf.Length - n, typed.Length) == typed;
     }
 
     /// <summary>Forget the mirrored text because the caret may have moved.</summary>
