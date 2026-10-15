@@ -64,7 +64,7 @@ public sealed class UserDictionary
         if (!Words.TryGetValue(key, out var entry))
             Words[key] = entry = new WordEntry();
         entry.Count++;
-        // Casing typed mid-sentence reflects how the word is really written ("Corvane", "iPhone").
+        // Casing typed mid-sentence reflects how the word is really written ("McAllister", "iPhone").
         if (!sentenceStart)
             entry.Display = word == key ? null : word;
 
