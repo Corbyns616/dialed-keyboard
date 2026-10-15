@@ -8,9 +8,12 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>DialedKeyboard</AssemblyName>
+    <Version>1.0.0</Version>
+    <Product>Dialed Keyboard</Product>
+    <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
 
-  <!-- Release only: uiAccess needs the signed Program Files install from install.ps1. -->
+  <!-- Release only: uiAccess needs the signed Program Files install (installer/trust-and-sign.ps1). -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>

@@ -25,37 +25,51 @@ box anywhere and type.
 
 ## Install
 
-You need Windows 10 or 11 and the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
+You need Windows 10 or 11 (64-bit). Nothing else needs to be installed first.
 
-### Standard install (recommended)
+1. **[Download DialedKeyboard-Setup.exe](https://github.com/Corbyns616/dialed-keyboard/releases/latest/download/DialedKeyboard-Setup.exe)**
+   (about 50 MB). Older versions are on the [Releases page](https://github.com/Corbyns616/dialed-keyboard/releases).
+2. Open the downloaded file. Windows may show a blue box saying **"Windows protected your PC"**.
+   This happens because Dialed Keyboard is a free project and isn't signed by a paid publisher.
+   Click **More info**, then **Run anyway**. If your browser warns about the download, choose
+   **Keep**.
+3. Click **Yes** when Windows asks if the app can make changes.
+4. Choose whether it should start when you sign in to Windows, then click **Install**. When setup
+   finishes, click **Finish** and the keyboard opens.
 
-Download or clone this repository, open PowerShell in the folder and run:
+Dialed Keyboard is now in your Start menu. To update it, download the newest setup and run it
+again. Your learned words and settings are kept.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1
-```
+### Why setup asks for administrator access
 
-Windows shows one administrator (UAC) prompt. The script:
+Windows blocks ordinary apps from typing into password prompts and administrator windows. Like the
+built-in Windows On-Screen Keyboard, Dialed Keyboard needs special permission (called uiAccess) to
+type there. Windows only gives that permission to an app that is installed in Program Files and
+digitally signed. So setup:
 
-1. builds the keyboard;
-2. creates a code-signing certificate that exists only on your PC and tells Windows to trust it;
-3. installs the keyboard to `C:\Program Files\DialedKeyboard`, signs it, adds a Start menu
-   shortcut and starts it.
+1. installs the keyboard to `C:\Program Files\DialedKeyboard`;
+2. creates a signing certificate on your PC, signs the keyboard with it and tells Windows to trust
+   it;
+3. deletes the certificate's private key straight away, so nothing else can ever be signed with it.
 
-The keyboard needs the certificate and the Program Files location so it can type into Windows
-password prompts and administrator windows, the way the built-in Windows On-Screen Keyboard does.
-Windows blocks typing into those windows from ordinary apps.
+Uninstalling removes the certificate again.
 
-Run the same command again to update after downloading a newer version.
+## Uninstall
 
-### Try it without installing
+1. Open **Settings > Apps > Installed apps**, find **Dialed Keyboard** and click **Uninstall**.
+2. Optionally delete `%AppData%\DialedKeyboard` to remove your learned words and settings.
 
-```powershell
-dotnet run --project DialedKeyboard
-```
+## Build from source
 
-This version works in most apps but cannot type into Windows password prompts or administrator
-windows.
+You need the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
+
+- `dotnet run --project DialedKeyboard` runs it without installing. This copy can't type into
+  password prompts or administrator windows.
+- `powershell -ExecutionPolicy Bypass -File .\install.ps1` builds and installs it with uiAccess.
+  Run it again after changing the code.
+- `powershell -ExecutionPolicy Bypass -File .\installer\build-installer.ps1` builds
+  `installer\Output\DialedKeyboard-Setup.exe`. It also needs Inno Setup 6
+  (`winget install JRSoftware.InnoSetup`).
 
 ## Privacy
 
@@ -68,16 +82,4 @@ collect or send anything.
   anything that apps mark as private, such as copies from password managers.
 - You can pause learning in Settings.
 
-## Uninstall
-
-1. Close the keyboard from its tray icon.
-2. Delete `C:\Program Files\DialedKeyboard` and the "DialedKeyboard" Start menu shortcut.
-3. Optionally delete `%AppData%\DialedKeyboard` to remove your learned words and settings.
-4. Optionally remove the "DialedKeyboard Local Code Signing" certificate: open
-   `certlm.msc` and look under Personal, Trusted Root Certification Authorities and Trusted
-   Publishers.
-
 ## License
-
-Dialed Keyboard is free and open source under the [MIT License](LICENSE). The key sounds and
-word list come from other projects. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
