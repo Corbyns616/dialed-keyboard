@@ -10,6 +10,11 @@
     <AssemblyName>DialedKeyboard</AssemblyName>
   </PropertyGroup>
 
+  <!-- Release only: uiAccess needs the signed Program Files install from install.ps1. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
   <ItemGroup>
     <!-- WinForms is only used for the tray icon; keep its namespaces from clashing with WPF. -->
     <Using Remove="System.Windows.Forms" />
