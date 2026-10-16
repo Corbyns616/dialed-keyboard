@@ -37,7 +37,7 @@ Name: startup; Description: "Start Dialed Keyboard when I sign in to Windows"
 Name: desktopicon; Description: "Add a shortcut to the desktop"
 
 [Files]
-Source: "build\app\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "build\app\*"; DestDir: "{app}"; Excludes: "*.lib"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "trust-and-sign.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]

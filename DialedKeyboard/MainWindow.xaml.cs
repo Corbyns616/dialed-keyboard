@@ -24,14 +24,22 @@ public partial class MainWindow : Window
     const double SwipeStartDistance = 0.45;
 
     readonly App _app;
-    readonly TypingController _typing;
+    /// <summary>Where the keys type: the app (<see cref="App.Typing"/>), or the sticker search box.</summary>
+    TypingController _typing;
     readonly KeySender _sender;
     readonly List<CharKey> _charKeys = new();
     readonly Button[] _suggestButtons = new Button[SuggestionCount];
+    UniformGrid _suggestBar = null!;
     readonly Suggestion?[] _suggestions = new Suggestion?[SuggestionCount];
     readonly Dictionary<KeyKind, ButtonBase> _modifierKeys = new();
     readonly List<Path> _shiftIcons = new();
     readonly DispatcherTimer _holdTimer = new() { Interval = TimeSpan.FromMilliseconds(380) };
+    // Hold a suggestion to forget it: the hold turns the slot into "Forget …?", and a tap confirms.
+    readonly DispatcherTimer _forgetHoldTimer = new() { Interval = TimeSpan.FromMilliseconds(600) };
+    readonly DispatcherTimer _forgetConfirmTimer = new() { Interval = TimeSpan.FromSeconds(5) };
+    int _forgetHeldIndex = -1, _forgetIndex = -1;
+    Suggestion? _forgetSuggestion;
+    bool _forgetHoldFired;
     KeyDef? _held;
     bool _holdTyped;
     bool _rightCtrlDown;
@@ -56,6 +64,7 @@ public partial class MainWindow : Window
     bool _dragging;
     Point _dragStart;
     InputWatcher? _watcher;
+    PasswordFieldWatcher? _passwordWatcher;
 
     public MainWindow(App app)
     {
@@ -65,6 +74,9 @@ public partial class MainWindow : Window
         InitializeComponent();
         _holdTimer.Tick += HoldTimer_Tick;
         _backspaceRepeat.Tick += BackspaceRepeat_Tick;
+        _forgetHoldTimer.Tick += ForgetHold_Tick;
+        _forgetConfirmTimer.Tick += (_, _) => CancelForget();
+        _swipeRestTimer.Tick += SwipeRest_Tick;
         BuildKeyboard();
         ApplySettings();
         PlaceWindow();
@@ -80,7 +92,19 @@ public partial class MainWindow : Window
         NoActivate.Apply(hwnd);
 
         _watcher = new InputWatcher(hwnd);
-        _watcher.ExternalInput += () => Dispatcher.BeginInvoke(() => _typing.Reset());
+        _watcher.ExternalInput += () => Dispatcher.BeginInvoke(() =>
+        {
+            CancelToggleSwipe();
+            // Clicking into an app means typing goes there again, not into the sticker search.
+            if (_searchMode)
+            {
+                EndSearchTyping();
+                RefreshKeys();
+            }
+            _app.Typing.Reset();
+        });
+        _passwordWatcher = new PasswordFieldWatcher();
+        _passwordWatcher.Changed += inPassword => Dispatcher.BeginInvoke(() => _app.Typing.InPasswordField = inPassword);
 
         // Ctrl+Alt+K shows/hides the keyboard from anywhere.
         HwndSource.FromHwnd(hwnd).AddHook(WndProc);
@@ -127,12 +151,34 @@ public partial class MainWindow : Window
         NativeMethods.UnregisterHotKey(new WindowInteropHelper(this).Handle, ToggleHotkeyId);
         NativeMethods.RemoveClipboardFormatListener(new WindowInteropHelper(this).Handle);
         _watcher?.Dispose();
+        _passwordWatcher?.Dispose();
         base.OnClosed(e);
     }
 
     public void ApplySettings()
     {
         Opacity = Math.Clamp(_app.Settings.Opacity, 0.3, 1.0);
+        bool stickers = _app.Settings.StickersEnabled;
+        if (_stickerColumn != null) _stickerColumn.Width = new GridLength(stickers ? 1 : 0, GridUnitType.Star);
+        if (_stickerKey != null) _stickerKey.Visibility = stickers ? Visibility.Visible : Visibility.Collapsed;
+        // The Swipe key only exists for no-hold swiping.
+        if (_swipeColumn != null) _swipeColumn.Width = new GridLength(NoHoldSwipe ? 1 : 0, GridUnitType.Star);
+        if (_swipeKey != null) _swipeKey.Visibility = NoHoldSwipe ? Visibility.Visible : Visibility.Collapsed;
+        if (!NoHoldSwipe)
+        {
+            CancelToggleSwipe();
+            _swipeToggleOn = false;
+        }
+        // Suggestions go in on release when holding one can forget it, so a hold doesn't type it first.
+        foreach (var btn in _suggestButtons)
+            btn.ClickMode = _app.Settings.HoldToForget ? ClickMode.Release : ClickMode.Press;
+        if (!_app.Settings.HoldToForget) CancelForget();
+        if (!_app.Settings.HoverToPress) CancelHover();
+        if (!stickers && (_stickerPage.Visibility == Visibility.Visible || _searchMode))
+        {
+            EndSearchTyping();
+            ShowPage(_keyPage);
+        }
         RefreshKeys();
     }
 
@@ -175,7 +221,10 @@ public partial class MainWindow : Window
         var strip = new Grid();
         foreach (var def in KeyLayout.StripKeys)
         {
-            strip.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(def.Width, GridUnitType.Star) });
+            var column = new ColumnDefinition { Width = new GridLength(def.Width, GridUnitType.Star) };
+            if (def.Kind == KeyKind.Stickers) _stickerColumn = column;
+            if (def.Kind == KeyKind.Swipe) _swipeColumn = column;
+            strip.ColumnDefinitions.Add(column);
             var key = CreateKey(def);
             Grid.SetColumn(key, strip.Children.Count);
             strip.Children.Add(key);
@@ -184,7 +233,7 @@ public partial class MainWindow : Window
         {
             Width = new GridLength(10 - KeyLayout.StripKeys.Sum(d => d.Width), GridUnitType.Star),
         });
-        var bar = new UniformGrid { Rows = 1, Columns = SuggestionCount };
+        var bar = _suggestBar = new UniformGrid { Rows = 1, Columns = SuggestionCount };
         Grid.SetColumn(bar, KeyLayout.StripKeys.Length);
         strip.Children.Add(bar);
         for (int i = 0; i < SuggestionCount; i++)
@@ -194,8 +243,23 @@ public partial class MainWindow : Window
             var btn = new Button { Content = text, ClickMode = ClickMode.Press };
             btn.Style = (Style)FindResource("KeyButton");
             btn.SetResourceReference(BackgroundProperty, "SuggestBg");
+            btn.PreviewMouseLeftButtonDown += (_, _) => StartForgetHold(index);
+            btn.PreviewMouseLeftButtonUp += (_, _) => _forgetHoldTimer.Stop();
+            btn.LostMouseCapture += (_, _) => _forgetHoldTimer.Stop();
             btn.Click += (_, _) =>
             {
+                if (_forgetHoldFired)
+                {
+                    _forgetHoldFired = false; // this release ends the hold that asked to forget
+                    return;
+                }
+                if (_forgetIndex == index)
+                {
+                    ConfirmForget();
+                    return;
+                }
+                _forgetIndex = -1; // a different suggestion was picked, so keep the one that was offered
+                _forgetSuggestion = null;
                 if (_suggestions[index] != null) _app.Sounds.Play("space");
                 AcceptSuggestion(index);
             };
@@ -212,6 +276,8 @@ public partial class MainWindow : Window
         _clipPage = BuildClipboardPage();
         _clips.Changed += RefreshClipboardList;
         RefreshClipboardList();
+        _stickerPage = BuildStickerPage();
+        SetUpHover();
     }
 
     Grid BuildPage(KeyDef[][] rows)
@@ -244,6 +310,7 @@ public partial class MainWindow : Window
         btn.Style = (Style)FindResource("KeyButton");
         // The click sounds the moment the key goes down, like a real keyboard.
         btn.PreviewMouseLeftButtonDown += (_, _) => _app.Sounds.Play(SoundFor(def));
+        _keySounds[btn] = SoundFor(def);
 
         if (def.Kind == KeyKind.Backspace)
         {
@@ -323,6 +390,19 @@ public partial class MainWindow : Window
                 btn.ToolTip = "Clipboard: copy, paste and recent copies";
                 _clipKey = btn;
             }
+            else if (def.Kind == KeyKind.Stickers)
+            {
+                // A sticker with a peeled corner and a smile.
+                btn.Content = KeyIcon("M14.5,3.5 L5.5,3.5 Q3.5,3.5 3.5,5.5 L3.5,18.5 Q3.5,20.5 5.5,20.5 L18.5,20.5 Q20.5,20.5 20.5,18.5 L20.5,9.5 Z M14.5,3.5 L14.5,9.5 L20.5,9.5 M8,14 Q11,17.5 15,14 M8.5,10 L8.5,10.2 M12,10 L12,10.2", out _);
+                btn.ToolTip = "Stickers: find a picture and send it as a sticker";
+                _stickerKey = btn;
+            }
+            else if (def.Kind == KeyKind.Swipe)
+            {
+                btn.Content = KeyIcon("M3.5,16.5 C6,7.5 9.5,7.5 11.5,12.5 S16.5,18 20,7.5 M16.8,8.2 L20,7.5 L20.8,10.6", out _);
+                btn.ToolTip = "Swipe: when lit, click the first letter, move over the others, then click the last letter";
+                _swipeKey = btn;
+            }
             if (def.Kind is KeyKind.Ctrl or KeyKind.Alt or KeyKind.Win)
                 _modifierKeys[def.Kind] = btn;
         }
@@ -383,6 +463,12 @@ public partial class MainWindow : Window
     /// </summary>
     void BackspaceRepeat_Tick(object? sender, EventArgs e)
     {
+        if (_searchMode)
+        {
+            _backspaceRepeat.Interval = TimeSpan.FromMilliseconds(70);
+            _typing.Backspace();
+            return;
+        }
         if (!_backspaceHeld)
         {
             _backspaceHeld = true;
@@ -459,15 +545,35 @@ public partial class MainWindow : Window
 
     void Swipe_Down(object sender, MouseButtonEventArgs e)
     {
+        var source = e.OriginalSource as DependencyObject;
+        if (_toggleSwiping)
+        {
+            // The click that ends a no-hold word; the key under it isn't pressed.
+            e.Handled = true;
+            FinishToggleSwipe(IsLetterKey(source) ? e.GetPosition(_lettersPage) : null);
+            return;
+        }
         _swiping = false;
         _swipePath.Clear();
         // With Ctrl/Alt/⊞ on, letters are shortcuts, so no swiping.
-        _swipeArmed = !(_ctrl || _alt || _win) && IsLetterKey(e.OriginalSource as DependencyObject);
+        bool letter = !(_ctrl || _alt || _win) && IsLetterKey(source);
+        if (letter && NoHoldSwipe && _swipeToggleOn)
+        {
+            e.Handled = true; // the letter starts a word instead of typing itself
+            StartToggleSwipe(e.GetPosition(_lettersPage), LetterKeyOf(source)?.Def);
+            return;
+        }
+        _swipeArmed = letter && HoldSwipe;
         if (_swipeArmed) _swipePath.Add(e.GetPosition(_lettersPage));
     }
 
     void Swipe_Move(object sender, MouseEventArgs e)
     {
+        if (_toggleSwiping)
+        {
+            ToggleSwipe_Move(e.GetPosition(_lettersPage));
+            return;
+        }
         if (!_swipeArmed || e.LeftButton != MouseButtonState.Pressed) return;
         var p = e.GetPosition(_lettersPage);
         _swipePath.Add(p);
@@ -498,14 +604,7 @@ public partial class MainWindow : Window
         _swipeSuppressClick = true;
         Dispatcher.BeginInvoke(() => _swipeSuppressClick = false, DispatcherPriority.Input);
         FadeTrail();
-
-        var path = _swipePath.Select(p => new SwipePoint(p.X, p.Y)).ToList();
-        var guesses = _typing.DecodeSwipe(path, LetterCentres(), KeyPitch, SuggestionCount + 1);
-        if (guesses.Count == 0) return;
-        _app.Sounds.Play("space");
-        _swipedWord = _typing.TypeSwipedWord(guesses[0]);
-        _swipeChoices = guesses.Skip(1).ToList();
-        RefreshKeys();
+        TypeSwipe();
     }
 
     void CancelSwipe()
@@ -517,7 +616,7 @@ public partial class MainWindow : Window
     void FadeTrail()
     {
         var fade = new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(220));
-        fade.Completed += (_, _) => { if (!_swiping) _swipeTrail.Points.Clear(); };
+        fade.Completed += (_, _) => { if (!_swiping && !_toggleSwiping) _swipeTrail.Points.Clear(); };
         _swipeTrail.BeginAnimation(OpacityProperty, fade);
     }
 
@@ -725,8 +824,9 @@ public partial class MainWindow : Window
 
     void ShowPage(Grid page)
     {
-        if (page != _clipPage) _keyPage = page;
-        foreach (var p in new[] { _lettersPage, _symbolsPage, _clipPage })
+        if (page != _lettersPage) CancelToggleSwipe();
+        if (page != _clipPage && page != _stickerPage) _keyPage = page;
+        foreach (var p in new[] { _lettersPage, _symbolsPage, _clipPage, _stickerPage })
             p.Visibility = p == page ? Visibility.Visible : Visibility.Collapsed;
         if (page == _clipPage) _clipScroll.ScrollToTop();
     }
@@ -736,6 +836,14 @@ public partial class MainWindow : Window
     void OnKey(KeyDef def)
     {
         _swipedWord = null; // any other key moves on from the last swipe's choices
+        _forgetIndex = -1; // and from a suggestion waiting to be forgotten
+        _forgetSuggestion = null;
+        CancelToggleSwipe(); // a key outside the letters (Esc, Ctrl, Swipe…) drops a half-drawn word
+        if (_searchMode && !SearchKey(def))
+        {
+            RefreshKeys();
+            return;
+        }
         bool mods = _ctrl || _alt || _win;
         switch (def.Kind)
         {
@@ -789,6 +897,14 @@ public partial class MainWindow : Window
             case KeyKind.Clipboard:
                 ShowPage(_clipPage.Visibility == Visibility.Visible ? _keyPage : _clipPage);
                 break;
+            case KeyKind.Stickers:
+                if (_stickerPage.Visibility == Visibility.Visible) ShowPage(_keyPage);
+                else ShowStickerPage();
+                break;
+            case KeyKind.Swipe:
+                ToggleSwipeKey();
+                if (_swipeToggleOn && _lettersPage.Visibility != Visibility.Visible) ShowPage(_lettersPage);
+                break;
             case KeyKind.Ctrl:
                 // A sticky Right Ctrl: the first tap holds it down, the next tap lets it go.
                 // Apps that act on Right Ctrl alone (OpenWhispr hold-to-talk) see a real hold.
@@ -824,6 +940,13 @@ public partial class MainWindow : Window
 
     void AcceptSuggestion(int index)
     {
+        CancelToggleSwipe();
+        if (_searchMode && index == 0)
+        {
+            SubmitSearch(); // the first slot shows the search; tapping it searches
+            RefreshKeys();
+            return;
+        }
         if (_suggestions[index] is not { } s) return;
         if (ShowingSwipeChoices && _typing.ReplaceSwipedWord(_swipedWord!, s.Text) is { } typed)
         {
@@ -835,6 +958,51 @@ public partial class MainWindow : Window
             return;
         }
         _typing.Accept(s);
+    }
+
+    void StartForgetHold(int index)
+    {
+        _forgetHoldFired = false;
+        _forgetHoldTimer.Stop();
+        if (!_app.Settings.HoldToForget || _searchMode || _suggestions[index] is not { IsExpansion: false }) return;
+        _forgetHeldIndex = index;
+        _forgetHoldTimer.Start();
+    }
+
+    void ForgetHold_Tick(object? sender, EventArgs e)
+    {
+        _forgetHoldTimer.Stop();
+        if (_suggestions[_forgetHeldIndex] is not { } s) return;
+        _forgetHoldFired = true;
+        _forgetIndex = _forgetHeldIndex;
+        _forgetSuggestion = s;
+        _forgetConfirmTimer.Stop();
+        _forgetConfirmTimer.Start();
+        _app.Sounds.Play("shift");
+        RefreshKeys();
+    }
+
+    void ConfirmForget()
+    {
+        var s = _forgetSuggestion;
+        _forgetConfirmTimer.Stop();
+        _forgetIndex = -1;
+        _forgetSuggestion = null;
+        if (s != null && _typing.Forget(s))
+        {
+            _app.Sounds.Play("backspace");
+            _swipeChoices.Remove(s.Text);
+        }
+        RefreshKeys();
+    }
+
+    void CancelForget()
+    {
+        _forgetConfirmTimer.Stop();
+        if (_forgetIndex < 0) return;
+        _forgetIndex = -1;
+        _forgetSuggestion = null;
+        RefreshKeys();
     }
 
     /// <summary>Right after a swipe, the suggestion bar offers the other guesses for that word.</summary>
@@ -860,10 +1028,15 @@ public partial class MainWindow : Window
         SetOn(KeyKind.Alt, _alt);
         SetOn(KeyKind.Win, _win);
         if (_clipKey != null) _clipKey.Tag = _clipPage.Visibility == Visibility.Visible ? "on" : null;
+        if (_stickerKey != null) _stickerKey.Tag = _stickerPage.Visibility == Visibility.Visible || _searchMode ? "on" : null;
+        if (_swipeKey != null) _swipeKey.Tag = _swipeToggleOn ? "on" : null;
 
-        var list = ShowingSwipeChoices
+        var list = _typing.Private ? new List<Suggestion>()
+            : ShowingSwipeChoices
             ? _swipeChoices.Take(SuggestionCount).Select(w => new Suggestion(w, false)).ToList()
             : _typing.GetSuggestions(SuggestionCount);
+        if (_searchMode)
+            list = new List<Suggestion> { new("", false) };
         for (int i = 0; i < SuggestionCount; i++)
         {
             var btn = _suggestButtons[i];
@@ -878,6 +1051,30 @@ public partial class MainWindow : Window
             btn.ToolTip = _suggestions[i]?.IsPhrase == true ? _suggestions[i]!.Text : null;
             btn.IsEnabled = _suggestions[i] != null;
         }
+        if (_forgetIndex >= 0 && _forgetSuggestion != null)
+        {
+            var slot = _suggestButtons[_forgetIndex];
+            ((TextBlock)slot.Content).Text = $"Tap to forget “{_forgetSuggestion.Text}”";
+            slot.Tag = "forget";
+            slot.ToolTip = "Tap to forget it. Tap anything else to keep it.";
+            slot.IsEnabled = true;
+        }
+        // Say why the suggestions are gone, so it doesn't look broken.
+        if (_typing.Private)
+            ((TextBlock)_suggestButtons[SuggestionCount / 2].Content).Text = "Password box: not learning";
+        if (_searchMode)
+        {
+            var search = _suggestButtons[0];
+            ((TextBlock)search.Content).Text = "🔍 " + _query.Value + "▏";
+            search.Tag = "on";
+            search.ToolTip = "Searching for stickers. Press Enter (or tap here) to search.";
+            search.IsEnabled = true;
+        }
+        // The search text, or the offer to forget a word, gets the whole bar so it can be read.
+        int solo = _searchMode ? 0 : _forgetIndex;
+        _suggestBar.Columns = solo >= 0 ? 1 : SuggestionCount;
+        for (int i = 0; i < SuggestionCount; i++)
+            _suggestButtons[i].Visibility = solo < 0 || i == solo ? Visibility.Visible : Visibility.Collapsed;
     }
 
     void SetOn(KeyKind kind, bool on)
@@ -901,6 +1098,7 @@ public partial class MainWindow : Window
         double gapX = pitch * 0.073, gapY = rowHeight * 0.11;
         Resources["KeyMargin"] = new Thickness(gapX, gapY, gapX, gapY);
         Resources["ClipItemHeight"] = Math.Max(20, rowHeight - 2 * gapY);
+        Resources["StickerItemHeight"] = Math.Max(40, 1.7 * rowHeight - 2 * gapY);
     }
 
     void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)

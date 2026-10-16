@@ -238,6 +238,89 @@ public class EngineTests
     }
 
     [Fact]
+    public void ForgottenWord_IsNeverSuggested_UntilTypedAgain()
+    {
+        var (t, _, user, predictor) = Create();
+        t.Reset();
+        Type(t, "hel");
+        Assert.Equal("hello", t.GetSuggestions(6)[0].Text);
+        Assert.True(t.Forget(t.GetSuggestions(6)[0]));
+        Assert.DoesNotContain("hello", t.GetSuggestions(6).Select(s => s.Text));
+        Assert.DoesNotContain("hello", predictor.Next(null, null, 20));
+
+        t.Reset();
+        Type(t, "hello ");
+        Assert.False(user.IsBlocked("hello"));
+        t.Reset();
+        Type(t, "hel");
+        Assert.Contains("hello", t.GetSuggestions(6).Select(s => s.Text));
+    }
+
+    [Fact]
+    public void ForgottenPhrase_StopsBeingRecalled_ButKeepsItsWords()
+    {
+        var (_, _, user, predictor) = Create();
+        for (int i = 0; i < 4; i++)
+        {
+            user.Learn(null, "see", false);
+            user.Learn("see", "you", false);
+            user.Learn("see", "you", "tomorrow", false);
+        }
+        Assert.Equal("see you tomorrow", predictor.PredictPhrase(null, null, "see"));
+        user.ForgetPhrase(new[] { "see", "you", "tomorrow" });
+        Assert.Null(predictor.PredictPhrase(null, null, "see"));
+        Assert.Equal(4, user.Count("you"));
+    }
+
+    [Fact]
+    public void Shortcuts_CantBeForgottenFromTheBar()
+    {
+        var (t, _, _, _) = Create();
+        Assert.False(t.Forget(new Suggestion("be right back", IsExpansion: true)));
+    }
+
+    [Fact]
+    public void PasswordBox_LearnsSuggestsAndChangesNothing()
+    {
+        var (t, o, user, _) = Create();
+        t.Reset(sentenceStart: true);
+        t.InPasswordField = true;
+        Type(t, "see you  brb ");
+        t.TypeKey(',', '<');
+        Type(t, "hel");
+        Assert.Empty(t.GetSuggestions(6));
+        Assert.False(t.UpperNext);
+        t.Enter();
+        Assert.Equal("see you  brb ,hel\n", o.Doc.ToString());
+        Assert.Empty(user.Words);
+    }
+
+    [Fact]
+    public void PasswordBox_WithProtectionOff_BehavesNormally()
+    {
+        var (t, _, user, _) = Create();
+        t.Options = new TypingOptions { ProtectPasswords = false };
+        t.InPasswordField = true;
+        t.Reset();
+        Type(t, "see ");
+        Assert.Equal(1, user.Count("see"));
+    }
+
+    [Fact]
+    public void LoneWordSentWithEnter_IsNotLearned()
+    {
+        var (t, _, user, _) = Create();
+        t.Reset();
+        Type(t, "hunter");
+        t.Enter();
+        Assert.Empty(user.Words);
+
+        Type(t, "see you");
+        t.Enter();
+        Assert.Equal(1, user.Count("you"));
+    }
+
+    [Fact]
     public void Paused_LearnsNothing()
     {
         var (t, _, user, _) = Create();

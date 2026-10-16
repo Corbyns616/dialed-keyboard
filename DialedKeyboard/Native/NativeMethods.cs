@@ -147,4 +147,24 @@ internal static class NativeMethods
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     public static extern IntPtr GetModuleHandleW(string? lpModuleName);
+
+    public const uint EVENT_OBJECT_FOCUS = 0x8005;
+    public const uint WINEVENT_OUTOFCONTEXT = 0x0000;
+    public const int STATE_SYSTEM_PROTECTED = 0x20000000;
+
+    public delegate void WinEventProc(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
+        int idObject, int idChild, uint idEventThread, uint dwmsEventTime);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr hmodWinEventProc,
+        WinEventProc lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool UnhookWinEvent(IntPtr hWinEventHook);
+
+    [DllImport("oleacc.dll")]
+    public static extern int AccessibleObjectFromEvent(IntPtr hwnd, int dwObjectId, int dwChildId,
+        [MarshalAs(UnmanagedType.Interface)] out Accessibility.IAccessible? ppacc,
+        [MarshalAs(UnmanagedType.Struct)] out object? pvarChild);
 }

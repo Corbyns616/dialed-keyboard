@@ -20,6 +20,8 @@ public sealed class TypingOptions
     /// <summary>Punctuation right after an automatic space pulls the space back: "word ." → "word. ".</summary>
     public bool SmartPunctuation { get; set; } = true;
     public bool AutoExpandOnSpace { get; set; } = true;
+    /// <summary>In password boxes: learn nothing, suggest nothing and change nothing that's typed.</summary>
+    public bool ProtectPasswords { get; set; } = true;
 }
 
 /// <summary>
@@ -54,6 +56,22 @@ public sealed class TypingController
     public bool ShiftOnce { get; set; }
     public bool CapsLock { get; set; }
 
+    /// <summary>Focus is in a password box (as far as Windows can tell).</summary>
+    public bool InPasswordField
+    {
+        get => _inPasswordField;
+        set
+        {
+            if (_inPasswordField == value) return;
+            _inPasswordField = value;
+            Changed();
+        }
+    }
+    bool _inPasswordField;
+
+    /// <summary>True while typing is treated as a password: nothing learned, suggested or corrected.</summary>
+    public bool Private => Options.ProtectPasswords && _inPasswordField;
+
     /// <summary>Raised after anything that may change suggestions or key labels.</summary>
     public event Action? StateChanged;
 
@@ -73,6 +91,7 @@ public sealed class TypingController
     /// <summary>True when the next letter would be capitalised automatically.</summary>
     public bool AutoCapNow =>
         Options.AutoCapitalize
+        && !Private
         && CurrentWord.Length == 0
         && (_buf.Length == 0 || _buf[^1] is ' ' or '\n')
         && WordBefore(_buf.Length) == WordPredictor.SentenceStart;
@@ -109,7 +128,7 @@ public sealed class TypingController
         else if (IsAttachingPunct(c))
         {
             LearnCurrentWord();
-            if (Options.SmartPunctuation && _softSpace && _buf.Length > 0 && _buf[^1] == ' ')
+            if (Options.SmartPunctuation && !Private && _softSpace && _buf.Length > 0 && _buf[^1] == ' ')
             {
                 Back(1);
                 Emit(c + " ");
@@ -136,7 +155,7 @@ public sealed class TypingController
         string word = CurrentWord;
         if (word.Length == 0)
         {
-            if (Options.DoubleSpacePeriod && _softSpace && _buf.Length >= 2 && _buf[^1] == ' ' && IsWordChar(_buf[^2]))
+            if (Options.DoubleSpacePeriod && !Private && _softSpace && _buf.Length >= 2 && _buf[^1] == ' ' && IsWordChar(_buf[^2]))
             {
                 Back(1);
                 Emit(". ");
@@ -151,7 +170,7 @@ public sealed class TypingController
             return;
         }
 
-        if (Options.AutoExpandOnSpace && _expander.TryGet(word, out var expansion))
+        if (Options.AutoExpandOnSpace && !Private && _expander.TryGet(word, out var expansion))
         {
             Back(word.Length);
             Emit(expansion);
@@ -192,7 +211,10 @@ public sealed class TypingController
     public void Enter()
     {
         ShiftOnce = false;
-        LearnCurrentWord();
+        // One word typed on its own and sent with Enter is how a password gets typed, in apps
+        // that don't say their box is a password box. Don't keep it.
+        if (!(Options.ProtectPasswords && CurrentWord.Length == _buf.Length))
+            LearnCurrentWord();
         _out.Enter();
         Reset(sentenceStart: true);
     }
@@ -234,6 +256,19 @@ public sealed class TypingController
         Emit(" ");
         _softSpace = true;
         Changed();
+    }
+
+    /// <summary>
+    /// Stops offering a suggestion: a word is forgotten and never suggested again (until you type
+    /// it yourself), a recalled phrase stops being recalled. Shortcuts can't be forgotten here.
+    /// </summary>
+    public bool Forget(Suggestion s)
+    {
+        if (s.IsExpansion) return false;
+        if (s.IsPhrase) _user.ForgetPhrase(s.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        else _user.Block(s.Text);
+        Changed();
+        return true;
     }
 
     /// <summary>Likely words for a swipe across the letter keys, best first, using the words before the caret.</summary>
@@ -309,6 +344,7 @@ public sealed class TypingController
     public List<Suggestion> GetSuggestions(int max)
     {
         var result = new List<Suggestion>(max);
+        if (Private) return result;
         string word = CurrentWord;
         if (word.Length > 0)
         {
@@ -368,7 +404,7 @@ public sealed class TypingController
     void LearnCurrentWord()
     {
         string word = CurrentWord;
-        if (word.Length == 0) return;
+        if (word.Length == 0 || Private) return;
         var (prev2, prev) = ContextBefore(_buf.Length - word.Length);
         _user.Learn(prev2, prev, word, prev == WordPredictor.SentenceStart);
     }
@@ -376,6 +412,7 @@ public sealed class TypingController
     /// <summary>Learns one word or every word of an accepted phrase, in order.</summary>
     void LearnWords(string? prev2, string? prev, string text)
     {
+        if (Private) return;
         foreach (var w in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
             _user.Learn(prev2, prev, w, prev == WordPredictor.SentenceStart);

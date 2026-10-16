@@ -19,6 +19,8 @@ public sealed class UserDictionary
     public Dictionary<string, Dictionary<string, int>> Bigrams { get; set; } = new(StringComparer.Ordinal);
     /// <summary>Keyed by "word1 word2" → next word → count.</summary>
     public Dictionary<string, Dictionary<string, int>> Trigrams { get; set; } = new(StringComparer.Ordinal);
+    /// <summary>Words you told it to forget: never suggested again, unless you type them yourself.</summary>
+    public HashSet<string> Blocked { get; set; } = new(StringComparer.Ordinal);
 
     [System.Text.Json.Serialization.JsonIgnore]
     public bool Dirty { get; private set; }
@@ -28,6 +30,8 @@ public sealed class UserDictionary
     public bool Paused { get; set; }
 
     public int Count(string key) => Words.TryGetValue(key, out var e) ? e.Count : 0;
+
+    public bool IsBlocked(string key) => Blocked.Contains(key);
 
     public string? Display(string key) => Words.TryGetValue(key, out var e) ? e.Display : null;
 
@@ -61,6 +65,7 @@ public sealed class UserDictionary
         if (!IsLearnable(word)) return;
 
         string key = word.ToLowerInvariant();
+        Blocked.Remove(key); // typed it yourself, so you want it after all
         if (!Words.TryGetValue(key, out var entry))
             Words[key] = entry = new WordEntry();
         entry.Count++;
@@ -99,9 +104,33 @@ public sealed class UserDictionary
         Dirty = true;
     }
 
+    /// <summary>Forgets a word and stops suggesting it, even if it's in the built-in dictionary.</summary>
+    public void Block(string word)
+    {
+        Forget(word);
+        Blocked.Add(word.ToLowerInvariant());
+        Dirty = true;
+    }
+
+    /// <summary>Forgets a recalled phrase: the links between its words, not the words themselves.</summary>
+    public void ForgetPhrase(IReadOnlyList<string> words)
+    {
+        for (int i = 0; i + 1 < words.Count; i++)
+        {
+            string a = words[i].ToLowerInvariant(), b = words[i + 1].ToLowerInvariant();
+            if (Bigrams.TryGetValue(a, out var next)) next.Remove(b);
+            if (i + 2 < words.Count && Trigrams.TryGetValue(TrigramKey(a, b), out var after))
+                after.Remove(words[i + 2].ToLowerInvariant());
+        }
+        RemoveEmpty(Bigrams);
+        RemoveEmpty(Trigrams);
+        Dirty = true;
+    }
+
     public void Clear()
     {
         Words.Clear();
+        Blocked.Clear();
         Bigrams.Clear();
         Trigrams.Clear();
         Dirty = true;

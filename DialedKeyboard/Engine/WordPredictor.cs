@@ -109,14 +109,14 @@ public sealed class WordPredictor
         for (; i < _entries.Length && _searchKeys[i].StartsWith(p, StringComparison.Ordinal); i++)
         {
             var e = _entries[i];
-            if (e.Lower == typedLower) continue; // already typed in full
+            if (e.Lower == typedLower || _user.IsBlocked(e.Lower)) continue; // already typed in full, or forgotten
             candidates.Add((Score(e.Lower, e.BaseScore, prev2, prev), _user.Display(e.Lower) ?? e.Display));
         }
 
         // Your own words that aren't in the dictionary (names, slang) once you've used them twice.
         foreach (var (key, entry) in _user.Words)
         {
-            if (entry.Count < 2 || key == typedLower || _byLower.ContainsKey(key)) continue;
+            if (entry.Count < 2 || key == typedLower || _byLower.ContainsKey(key) || _user.IsBlocked(key)) continue;
             if (!Strip(key).StartsWith(p, StringComparison.Ordinal)) continue;
             candidates.Add((Score(key, 0, prev2, prev), entry.Display ?? key));
         }
@@ -138,6 +138,7 @@ public sealed class WordPredictor
         var keys = new HashSet<string>(StringComparer.Ordinal);
         keys.UnionWith(_user.TrigramNexts(prev2, prev)?.Keys ?? Enumerable.Empty<string>());
         keys.UnionWith(_user.BigramNexts(prev)?.Keys ?? Enumerable.Empty<string>());
+        keys.RemoveWhere(_user.IsBlocked);
         foreach (var key in keys
             .OrderByDescending(k => TrigramWeight * Math.Log(1 + _user.Trigram(prev2, prev, k))
                                     + BigramWeight * Math.Log(1 + _user.Bigram(prev, k))
@@ -149,6 +150,7 @@ public sealed class WordPredictor
         foreach (var e in _top)
         {
             if (result.Count >= max) break;
+            if (_user.IsBlocked(e.Lower)) continue;
             string text = _user.Display(e.Lower) ?? e.Display;
             if (!result.Contains(text, StringComparer.OrdinalIgnoreCase))
                 result.Add(text);
@@ -182,9 +184,8 @@ public sealed class WordPredictor
     /// <summary>The next word, only if you've clearly made a habit of it after this context.</summary>
     string? StrongNext(string? prev2, string? prev)
     {
-        if (Dominant(_user.TrigramNexts(prev2, prev), minCount: 2) is { } fromTriple)
-            return fromTriple;
-        return Dominant(_user.BigramNexts(prev), minCount: 3);
+        string? next = Dominant(_user.TrigramNexts(prev2, prev), minCount: 2) ?? Dominant(_user.BigramNexts(prev), minCount: 3);
+        return next != null && _user.IsBlocked(next) ? null : next;
     }
 
     static string? Dominant(Dictionary<string, int>? nexts, int minCount)
@@ -211,6 +212,9 @@ public sealed class WordPredictor
             if (entry.Count >= 2 && !_byLower.ContainsKey(key))
                 yield return (key, entry.Display ?? key);
     }
+
+    /// <summary>True for a word you told the keyboard to forget.</summary>
+    public bool IsBlocked(string lower) => _user.IsBlocked(lower);
 
     /// <summary>How likely <paramref name="lower"/> is here, from its frequency, your history and the words before it.</summary>
     public double Likelihood(string lower, string? prev2, string? prev) => Score(lower, BaseScore(lower), prev2, prev);

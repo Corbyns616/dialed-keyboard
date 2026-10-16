@@ -17,6 +17,7 @@
         <SolidColorBrush x:Key="SuggestBg" Color="#171719"/>
         <SolidColorBrush x:Key="ExpansionBg" Color="#2F6B46"/>
         <SolidColorBrush x:Key="PhraseBg" Color="#5B3F8C"/>
+        <SolidColorBrush x:Key="ForgetBg" Color="#8E2B2B"/>
 
         <sys:Double x:Key="KeyFontSize">20</sys:Double>
         <sys:Double x:Key="KeyLabelFontSize">17</sys:Double>
@@ -46,6 +47,9 @@
                             </Trigger>
                             <Trigger Property="Tag" Value="phrase">
                                 <Setter TargetName="bd" Property="Background" Value="{DynamicResource PhraseBg}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="forget">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ForgetBg}"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="bd" Property="Background" Value="{DynamicResource KeyHover}"/>

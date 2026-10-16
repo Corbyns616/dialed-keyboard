@@ -49,6 +49,7 @@ public sealed class SwipeDecoder
         var scored = new List<(double Score, string Display)>();
         foreach (var word in Candidates(starts, ends))
         {
+            if (_predictor.IsBlocked(word.Lower)) continue;
             var template = Template(word.Letters, keys);
             if (template == null || template.Count < 2) continue;
             if (!PassesNearEveryLetter(template, dense, keyWidth * LetterRadius)) continue;

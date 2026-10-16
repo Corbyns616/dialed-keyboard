@@ -24,6 +24,7 @@ public partial class App : Application
     public UserDictionary UserDictionary { get; private set; } = new();
     public Expander Expander { get; } = new();
     public TypingController Typing { get; private set; } = null!;
+    public WordPredictor Predictor { get; private set; } = null!;
     public KeySender Sender { get; } = new();
     public KeySounds Sounds { get; private set; } = null!;
     MainWindow _main = null!;
@@ -51,8 +52,8 @@ public partial class App : Application
 
         Settings = AppSettings.Load();
         UserDictionary = UserDictionary.Load(AppSettings.UserDictionaryPath);
-        var predictor = WordPredictor.LoadDefault(UserDictionary);
-        Typing = new TypingController(Sender, predictor, UserDictionary, Expander);
+        Predictor = WordPredictor.LoadDefault(UserDictionary);
+        Typing = new TypingController(Sender, Predictor, UserDictionary, Expander);
         Sounds = new KeySounds();
         ApplySettings();
 
@@ -79,6 +80,7 @@ public partial class App : Application
             DoubleSpacePeriod = Settings.DoubleSpacePeriod,
             SmartPunctuation = Settings.SmartPunctuation,
             AutoExpandOnSpace = Settings.AutoExpandOnSpace,
+            ProtectPasswords = Settings.ProtectPasswords,
         };
         Sounds.Enabled = Settings.KeySounds;
         Sounds.Volume = Math.Clamp(Settings.KeySoundVolume, 0, 100) / 100f;
@@ -95,14 +97,14 @@ public partial class App : Application
                 ["WindowBg"] = "#F2F2F4", ["KeyBg"] = "#FFFFFF", ["SpecialKeyBg"] = "#DCDCE0",
                 ["KeyHover"] = "#E8E8EC", ["KeyPressed"] = "#C8C8CE", ["KeyFg"] = "#1B1B1D",
                 ["KeySubFg"] = "#8E8E93", ["AccentFg"] = "#1A73E8", ["AccentBg"] = "#9DB4FF", ["SuggestBg"] = "#E4E4E8",
-                ["ExpansionBg"] = "#BFE5CC", ["PhraseBg"] = "#DCCBF5",
+                ["ExpansionBg"] = "#BFE5CC", ["PhraseBg"] = "#DCCBF5", ["ForgetBg"] = "#F3C2C2",
             }
             : new Dictionary<string, string>
             {
                 ["WindowBg"] = "#010101", ["KeyBg"] = "#3A3A3C", ["SpecialKeyBg"] = "#171719",
                 ["KeyHover"] = "#48484B", ["KeyPressed"] = "#5E5E62", ["KeyFg"] = "#F5F5F7",
                 ["KeySubFg"] = "#9A999E", ["AccentFg"] = "#5E93F5", ["AccentBg"] = "#3B5BDB", ["SuggestBg"] = "#171719",
-                ["ExpansionBg"] = "#2F6B46", ["PhraseBg"] = "#5B3F8C",
+                ["ExpansionBg"] = "#2F6B46", ["PhraseBg"] = "#5B3F8C", ["ForgetBg"] = "#8E2B2B",
             };
         foreach (var (key, hex) in colors)
             Resources[key] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));

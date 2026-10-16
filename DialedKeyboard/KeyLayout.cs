@@ -10,6 +10,10 @@ public enum KeyKind
     Shift, Ctrl, Alt, Win, Page, Spacer,
     /// <summary>Opens the clipboard panel: Copy/Cut/Paste/Select all and recent copies.</summary>
     Clipboard,
+    /// <summary>Opens the sticker panel: search for a picture and send it as a sticker.</summary>
+    Stickers,
+    /// <summary>No-hold swiping: while lit, clicking a letter starts a word and the next click ends it.</summary>
+    Swipe,
 }
 
 /// <param name="Hint">The small symbol in the corner, typed by a long press or right-click.</param>
@@ -66,6 +70,8 @@ public static class KeyLayout
         Special(KeyKind.Ctrl, "Ctrl"),
         Special(KeyKind.Alt, "Alt"),
         Special(KeyKind.Clipboard, "Clipboard"),
+        Special(KeyKind.Stickers, "Stickers"),
+        Special(KeyKind.Swipe, "Swipe"),
     };
 
     /// <summary>Symbols missing from the ABC page, plus the desktop keys a phone doesn't have.</summary>

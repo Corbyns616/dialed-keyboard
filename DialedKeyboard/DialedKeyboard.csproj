@@ -29,9 +29,12 @@
     <EmbeddedResource Include="Data\words_en.txt" LogicalName="DialedKeyboard.words_en.txt" />
     <!-- Key click sounds: NK Cream from Mechvibes (MIT), shared with ASMR Typer. -->
     <None Include="Sounds\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <!-- Sticker background removal: U²-Net "u2netp" (Apache 2.0), converted to ONNX by rembg (MIT). -->
+    <None Include="Models\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.31.0" />
     <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
   </ItemGroup>
 

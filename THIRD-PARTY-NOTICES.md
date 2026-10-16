@@ -41,3 +41,15 @@ That license covers this file only; the rest of Dialed Keyboard is MIT licensed 
 
 [NAudio](https://github.com/naudio/NAudio) (MIT License) plays the key sounds. NuGet downloads it
 when the project is built, so it is not stored in this repository.
+
+## U²-Net background removal model (`DialedKeyboard/Models/u2netp.onnx`)
+
+The small "u2netp" model from [U²-Net](https://github.com/xuebinqin/U-2-Net) by Xuebin Qin et al.,
+licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). The ONNX
+file is the one published by [rembg](https://github.com/danielgatis/rembg) (MIT License) and is
+included unchanged (SHA-256 `309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8`).
+
+## ONNX Runtime
+
+[ONNX Runtime](https://github.com/microsoft/onnxruntime) (MIT License) runs the background removal
+model. NuGet downloads it when the project is built, so it is not stored in this repository.

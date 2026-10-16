@@ -13,11 +13,17 @@ box anywhere and type.
   right-click a key for the symbol in its corner.
 - **Swipe typing:** press a letter and slide across the others to type a whole word.
 - **Word suggestions** that learn the words you use, including names and spellings that aren't
-  in the dictionary.
+  in the dictionary. Hold a suggestion to forget a word you don't want suggested.
+- **Hover to press:** rest the pointer on a key and it presses by itself, for anyone who finds
+  clicking hard. You choose how long to rest in Settings.
 - **Text shortcuts:** type a short abbreviation and it expands into a longer phrase.
 - **Auto-capitalisation**, smart punctuation and double-space for a full stop. You can turn each
   one off.
 - **Clipboard panel** with big Copy, Cut, Paste and Select all buttons, plus your recent copies.
+- **Stickers:** search for a picture, tap it, and the keyboard removes the background to make a
+  sticker you can paste into a chat. Your stickers are kept under **Mine** for next time.
+- **Password protection:** in password boxes the keyboard learns nothing, hides its suggestions
+  and doesn't change what you type.
 - **Sticky Ctrl** and hold-to-repeat Backspace, so you don't need to hold keys down.
 - A **floating button** that shrinks the keyboard out of the way, and **Ctrl+Alt+K** to show or
   hide it. You can move and resize the keyboard.
@@ -28,7 +34,7 @@ box anywhere and type.
 You need Windows 10 or 11 (64-bit). Nothing else needs to be installed first.
 
 1. **[Download DialedKeyboard-Setup.exe](https://github.com/Corbyns616/dialed-keyboard/releases/latest/download/DialedKeyboard-Setup.exe)**
-   (about 50 MB). Older versions are on the [Releases page](https://github.com/Corbyns616/dialed-keyboard/releases).
+   (about 55 MB). Older versions are on the [Releases page](https://github.com/Corbyns616/dialed-keyboard/releases).
 2. Open the downloaded file. Windows may show a blue box saying **"Windows protected your PC"**.
    This happens because Dialed Keyboard is a free project and isn't signed by a paid publisher.
    Click **More info**, then **Run anyway**. If your browser warns about the download, choose
@@ -73,13 +79,23 @@ You need the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 
 ## Privacy
 
-Everything stays on your computer. Dialed Keyboard does not connect to the internet and does not
-collect or send anything.
+Everything you type stays on your computer. Dialed Keyboard does not collect or send anything
+about you.
 
-- The words it learns, your text shortcuts and your settings are saved in
+- The only time it goes online is when you search for stickers. The words you search for are sent
+  to [Openverse](https://openverse.org) (a free picture search run by WordPress.org), and the
+  pictures are downloaded from the sites that host them. Removing the background happens on your
+  computer. To keep the keyboard offline completely, turn off the Stickers key in Settings.
+- The words it learns, your text shortcuts, your settings and your stickers are saved in
   `%AppData%\DialedKeyboard`. Delete that folder to clear them.
+- Nothing typed in a password box is learned. Some apps don't tell Windows which box is a
+  password box, so a single word typed on its own and sent with Enter isn't learned either.
 - Clipboard history is kept in memory only and is forgotten when the keyboard closes. It skips
   anything that apps mark as private, such as copies from password managers.
 - You can pause learning in Settings.
+
+Sticker pictures come from Openverse, which only lists openly licensed images (mostly Creative
+Commons). Hover over a search result to see who made it and its license. Some licenses don't
+allow commercial use, so stickers are best kept for personal chats.
 
 ## License

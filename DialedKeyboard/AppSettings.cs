@@ -29,6 +29,16 @@ public sealed class AppSettings
     public bool SmartPunctuation { get; set; } = true;
     public bool AutoExpandOnSpace { get; set; } = true;
     public bool LearningPaused { get; set; }
+    public bool ProtectPasswords { get; set; } = true;
+    /// <summary>The Stickers key; its picture search is the only thing that uses the internet.</summary>
+    public bool StickersEnabled { get; set; } = true;
+    /// <summary>Holding a suggestion offers to forget that word.</summary>
+    public bool HoldToForget { get; set; } = true;
+    /// <summary>Resting the pointer on a key presses it (dwell clicking).</summary>
+    public bool HoverToPress { get; set; }
+    public double HoverSeconds { get; set; } = 1.0;
+    /// <summary>One of <see cref="SwipeModes"/>.</summary>
+    public string SwipeMode { get; set; } = SwipeModes.Hold;
 
     public bool KeySounds { get; set; } = true;
     /// <summary>0 to 100.</summary>

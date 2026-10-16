@@ -1,7 +1,7 @@
 <Window x:Class="DialedKeyboard.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="DialedKeyboard Settings" Width="620" Height="640" MinWidth="480" MinHeight="480"
+        Title="DialedKeyboard Settings" Width="620" Height="760" MinWidth="480" MinHeight="480"
         WindowStartupLocation="CenterScreen" FontSize="14">
     <Grid Margin="16">
         <Grid.RowDefinitions>
@@ -32,6 +32,36 @@
             <CheckBox x:Name="DoubleSpaceBox" Content="Double space types a period" Margin="0,4"/>
             <CheckBox x:Name="SmartPunctBox" Content="Punctuation removes the space before it (word . → word. )" Margin="0,4"/>
             <CheckBox x:Name="AutoExpandBox" Content="Expand shortcuts automatically when I press Space" Margin="0,4"/>
+            <CheckBox x:Name="ProtectPasswordsBox" Margin="0,4">
+                <TextBlock TextWrapping="Wrap"
+                           Text="Protect passwords: in password boxes, learn nothing, hide suggestions and don't change what I type. A single word typed on its own and sent with Enter isn't learned either."/>
+            </CheckBox>
+            <DockPanel Margin="0,4,0,4">
+                <TextBlock Text="Swipe typing" Width="110" VerticalAlignment="Center"/>
+                <ComboBox x:Name="SwipeModeBox" HorizontalAlignment="Left">
+                    <ComboBoxItem Tag="Off" Content="Off"/>
+                    <ComboBoxItem Tag="Hold" Content="Hold the button down and drag across the letters"/>
+                    <ComboBoxItem Tag="NoHold" Content="No-hold: tap Swipe, click the first letter, move, click the last letter"/>
+                </ComboBox>
+            </DockPanel>
+            <CheckBox x:Name="HoldToForgetBox" Margin="0,4">
+                <TextBlock TextWrapping="Wrap"
+                           Text="Hold a suggestion to forget that word: it turns red, then tap it again and it's never suggested again (until you type it yourself)."/>
+            </CheckBox>
+            <CheckBox x:Name="HoverBox" Margin="0,4">
+                <TextBlock TextWrapping="Wrap"
+                           Text="Hover to press: rest the pointer on a key and it presses by itself. To press the same key again, move off it and back."/>
+            </CheckBox>
+            <DockPanel Margin="24,0,0,8" IsEnabled="{Binding IsChecked, ElementName=HoverBox}">
+                <TextBlock Text="Hover time" Width="86" VerticalAlignment="Center"/>
+                <TextBlock x:Name="HoverTimeText" DockPanel.Dock="Right" Width="70" VerticalAlignment="Center" TextAlignment="Right"/>
+                <Slider x:Name="HoverTimeSlider" Minimum="0.3" Maximum="3" TickFrequency="0.1" IsSnapToTickEnabled="True"
+                        ToolTip="How long to rest on a key before it presses" ValueChanged="HoverTimeSlider_ValueChanged"/>
+            </DockPanel>
+            <CheckBox x:Name="StickersBox" Margin="0,4">
+                <TextBlock TextWrapping="Wrap"
+                           Text="Stickers key: search the internet for pictures (openly licensed ones, through Openverse) and turn them into stickers. Turn this off and the keyboard never goes online."/>
+            </CheckBox>
         </StackPanel>
 
         <TabControl Grid.Row="1" Margin="0,12,0,12">
