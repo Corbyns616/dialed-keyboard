@@ -23,6 +23,11 @@ public sealed class MiniButton : Window
     const double DragThreshold = 4;
 
     static readonly Color Glow = Color.FromRgb(79, 124, 255);
+    /// <summary>
+    /// The pulse never stops, and redrawing a see-through window is costly, so it runs at a
+    /// gentle frame rate rather than 60 a second: much less CPU, and it looks the same.
+    /// </summary>
+    const int PulseFrameRate = 24;
 
     readonly App _app;
     Point _pressPoint;
@@ -82,16 +87,16 @@ public sealed class MiniButton : Window
         Content = new Grid { Children = { ring, button } };
 
         var beat = new Duration(TimeSpan.FromSeconds(1.6));
-        var ringGrow = new DoubleAnimation(1, 1.7, beat) { RepeatBehavior = RepeatBehavior.Forever };
+        var ringGrow = Paced(new DoubleAnimation(1, 1.7, beat) { RepeatBehavior = RepeatBehavior.Forever });
         ringScale.BeginAnimation(ScaleTransform.ScaleXProperty, ringGrow);
         ringScale.BeginAnimation(ScaleTransform.ScaleYProperty, ringGrow);
-        ring.BeginAnimation(OpacityProperty, new DoubleAnimation(0.8, 0, beat) { RepeatBehavior = RepeatBehavior.Forever });
+        ring.BeginAnimation(OpacityProperty, Paced(new DoubleAnimation(0.8, 0, beat) { RepeatBehavior = RepeatBehavior.Forever }));
 
         var ease = new SineEase { EasingMode = EasingMode.EaseInOut };
         var halfBeat = new Duration(TimeSpan.FromSeconds(0.8));
         glow.BeginAnimation(DropShadowEffect.BlurRadiusProperty,
-            new DoubleAnimation(10, 30, halfBeat) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = ease });
-        var breathe = new DoubleAnimation(1, 1.06, halfBeat) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = ease };
+            Paced(new DoubleAnimation(10, 30, halfBeat) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = ease }));
+        var breathe = Paced(new DoubleAnimation(1, 1.06, halfBeat) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = ease });
         buttonScale.BeginAnimation(ScaleTransform.ScaleXProperty, breathe);
         buttonScale.BeginAnimation(ScaleTransform.ScaleYProperty, breathe);
 
@@ -99,6 +104,12 @@ public sealed class MiniButton : Window
         var s = app.Settings;
         Left = s.MiniLeft is double l && l >= work.Left - Halo && l <= work.Right - Size + Halo ? l : work.Right - Size - 8;
         Top = s.MiniTop is double t && t >= work.Top - Halo && t <= work.Bottom - Size + Halo ? t : work.Bottom - Size - 8;
+    }
+
+    static DoubleAnimation Paced(DoubleAnimation animation)
+    {
+        Timeline.SetDesiredFrameRate(animation, PulseFrameRate);
+        return animation;
     }
 
     protected override void OnSourceInitialized(EventArgs e)
