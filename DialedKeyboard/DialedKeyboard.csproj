@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>DialedKeyboard</AssemblyName>
-    <Version>1.1.1</Version>
+    <Version>1.1.2</Version>
     <Product>Dialed Keyboard</Product>
     <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>

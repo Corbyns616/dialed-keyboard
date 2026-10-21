@@ -10,10 +10,11 @@ box anywhere and type.
 ## Features
 
 - **Phone-style layout** with an ABC page and a !#1 page for numbers and symbols. Long-press or
-  right-click a key for the symbol in its corner.
+  right-click a key for the symbol in its corner. The arrow keys sit beside the space bar.
 - **Swipe typing:** press a letter and slide across the others to type a whole word.
-- **Word suggestions** that learn the words you use, including names and spellings that aren't
-  in the dictionary. Hold a suggestion to forget a word you don't want suggested.
+- **Word suggestions**, one word at a time, that learn the words you use, including names and
+  spellings that aren't in the dictionary. Hold a suggestion to forget a word you don't want
+  suggested. Whole-phrase suggestions can be turned on in Settings.
 - **Hover to press:** rest the pointer on a key and it presses by itself, for anyone who finds
   clicking hard. You choose how long to rest in Settings.
 - **Text shortcuts:** type a short abbreviation and it expands into a longer phrase.
