@@ -28,6 +28,7 @@ public sealed class AppSettings
     public bool DoubleSpacePeriod { get; set; } = true;
     public bool SmartPunctuation { get; set; } = true;
     public bool AutoExpandOnSpace { get; set; } = true;
+    public bool SuggestPhrases { get; set; }
     public bool LearningPaused { get; set; }
     public bool ProtectPasswords { get; set; } = true;
     /// <summary>The Stickers key; its picture search is the only thing that uses the internet.</summary>

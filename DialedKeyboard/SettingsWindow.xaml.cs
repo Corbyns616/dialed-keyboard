@@ -30,6 +30,7 @@ public partial class SettingsWindow : Window
         DoubleSpaceBox.IsChecked = s.DoubleSpacePeriod;
         SmartPunctBox.IsChecked = s.SmartPunctuation;
         AutoExpandBox.IsChecked = s.AutoExpandOnSpace;
+        SuggestPhrasesBox.IsChecked = s.SuggestPhrases;
         ProtectPasswordsBox.IsChecked = s.ProtectPasswords;
         StickersBox.IsChecked = s.StickersEnabled;
         HoldToForgetBox.IsChecked = s.HoldToForget;
@@ -64,7 +65,7 @@ public partial class SettingsWindow : Window
             $"Learned from your typing: {user.Words.Count:N0} words, " +
             $"{user.Bigrams.Sum(b => b.Value.Count):N0} word pairs and " +
             $"{user.Trigrams.Sum(t => t.Value.Count):N0} three-word sequences. " +
-            "Words you use often rank higher, and phrases you repeat show up as a purple suggestion. " +
+            "Words you use often rank higher, and (if turned on above) phrases you repeat show up as a purple suggestion. " +
             "Hold any suggestion on the keyboard to forget it. " +
             "Words with digits or symbols are never saved, and neither is anything typed in a password box " +
             "(unless password protection is turned off above). Changes here apply right away.";
@@ -143,7 +144,8 @@ public partial class SettingsWindow : Window
             doubleSpace = DoubleSpaceBox.IsChecked == true, smartPunct = SmartPunctBox.IsChecked == true,
             autoExpand = AutoExpandBox.IsChecked == true, paused = PauseLearningBox.IsChecked == true,
             protectPasswords = ProtectPasswordsBox.IsChecked == true, stickers = StickersBox.IsChecked == true,
-            holdToForget = HoldToForgetBox.IsChecked == true, hover = HoverBox.IsChecked == true;
+            holdToForget = HoldToForgetBox.IsChecked == true, hover = HoverBox.IsChecked == true,
+            suggestPhrases = SuggestPhrasesBox.IsChecked == true;
         double hoverSeconds = Math.Round(HoverTimeSlider.Value, 1);
         string swipeMode = (string)((ComboBoxItem)SwipeModeBox.SelectedItem).Tag;
         int volume = (int)SoundVolumeSlider.Value;
@@ -164,6 +166,7 @@ public partial class SettingsWindow : Window
             s.DoubleSpacePeriod = doubleSpace;
             s.SmartPunctuation = smartPunct;
             s.AutoExpandOnSpace = autoExpand;
+            s.SuggestPhrases = suggestPhrases;
             s.LearningPaused = paused;
             s.ProtectPasswords = protectPasswords;
             s.StickersEnabled = stickers;

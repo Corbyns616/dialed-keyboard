@@ -176,6 +176,7 @@ public class EngineTests
     public void RepeatedPhrase_IsOfferedWhole()
     {
         var (t, o, _, _) = Create();
+        t.Options.SuggestPhrases = true;
         for (int i = 0; i < 3; i++)
         {
             t.Reset(sentenceStart: true);
@@ -194,6 +195,7 @@ public class EngineTests
     public void PhraseFromPartialWord_CompletesAndContinues()
     {
         var (t, o, _, _) = Create();
+        t.Options.SuggestPhrases = true;
         for (int i = 0; i < 3; i++)
         {
             t.Reset();
@@ -207,9 +209,26 @@ public class EngineTests
     }
 
     [Fact]
+    public void PhrasesOff_SuggestsOneWordAtATime()
+    {
+        var (t, _, _, _) = Create();
+        for (int i = 0; i < 3; i++)
+        {
+            t.Reset();
+            Type(t, "see you tomorrow ");
+        }
+        t.Reset();
+        Type(t, "see ");
+        var suggestions = t.GetSuggestions(6);
+        Assert.DoesNotContain(suggestions, s => s.IsPhrase || s.Text.Contains(' '));
+        Assert.Equal("you", suggestions[0].Text);
+    }
+
+    [Fact]
     public void NoPhrase_WithoutAHabit()
     {
         var (t, _, _, _) = Create();
+        t.Options.SuggestPhrases = true;
         t.Reset();
         Type(t, "see you tomorrow ");
         t.Reset();

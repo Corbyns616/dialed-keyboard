@@ -20,6 +20,8 @@ public sealed class TypingOptions
     /// <summary>Punctuation right after an automatic space pulls the space back: "word ." → "word. ".</summary>
     public bool SmartPunctuation { get; set; } = true;
     public bool AutoExpandOnSpace { get; set; } = true;
+    /// <summary>Also offer whole phrases you type often; off means suggestions are one word at a time.</summary>
+    public bool SuggestPhrases { get; set; }
     /// <summary>In password boxes: learn nothing, suggest nothing and change nothing that's typed.</summary>
     public bool ProtectPasswords { get; set; } = true;
 }
@@ -352,7 +354,7 @@ public sealed class TypingController
                 result.Add(new Suggestion(expansion, true));
             var (prev2, prev) = ContextBefore(_buf.Length - word.Length);
             var completions = _predictor.Complete(word, prev2, prev, max);
-            if (completions.Count > 0 && _predictor.PredictPhrase(prev2, prev, completions[0]) is { } phrase)
+            if (Options.SuggestPhrases && completions.Count > 0 && _predictor.PredictPhrase(prev2, prev, completions[0]) is { } phrase)
                 result.Add(new Suggestion(MatchCase(word, phrase), false, IsPhrase: true));
             foreach (var w in completions)
             {
@@ -364,7 +366,7 @@ public sealed class TypingController
         {
             bool cap = AutoCapNow;
             var (prev2, prev) = ContextBefore(_buf.Length);
-            if (_predictor.PredictPhrase(prev2, prev, null) is { } phrase)
+            if (Options.SuggestPhrases && _predictor.PredictPhrase(prev2, prev, null) is { } phrase)
                 result.Add(new Suggestion(cap ? Capitalize(phrase) : phrase, false, IsPhrase: true));
             foreach (var w in _predictor.Next(prev2, prev, max))
             {

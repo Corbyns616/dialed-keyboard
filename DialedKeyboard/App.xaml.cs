@@ -80,6 +80,7 @@ public partial class App : Application
             DoubleSpacePeriod = Settings.DoubleSpacePeriod,
             SmartPunctuation = Settings.SmartPunctuation,
             AutoExpandOnSpace = Settings.AutoExpandOnSpace,
+            SuggestPhrases = Settings.SuggestPhrases,
             ProtectPasswords = Settings.ProtectPasswords,
         };
         Sounds.Enabled = Settings.KeySounds;

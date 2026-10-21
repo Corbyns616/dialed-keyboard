@@ -32,6 +32,7 @@
             <CheckBox x:Name="DoubleSpaceBox" Content="Double space types a period" Margin="0,4"/>
             <CheckBox x:Name="SmartPunctBox" Content="Punctuation removes the space before it (word . → word. )" Margin="0,4"/>
             <CheckBox x:Name="AutoExpandBox" Content="Expand shortcuts automatically when I press Space" Margin="0,4"/>
+            <CheckBox x:Name="SuggestPhrasesBox" Content="Suggest whole phrases I type often (otherwise one word at a time)" Margin="0,4"/>
             <CheckBox x:Name="ProtectPasswordsBox" Margin="0,4">
                 <TextBlock TextWrapping="Wrap"
                            Text="Protect passwords: in password boxes, learn nothing, hide suggestions and don't change what I type. A single word typed on its own and sent with Enter isn't learned either."/>
