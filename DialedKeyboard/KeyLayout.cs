@@ -55,10 +55,13 @@ public static class KeyLayout
         },
         new[]
         {
+            // Arrows sit on the main page so moving the caret never needs a page switch.
             Special(KeyKind.Page, "!#1", 1.5),
-            C('?', '-'),
-            Special(KeyKind.Space, "English (US)", 5),
-            C('.'),
+            Special(KeyKind.Nav, "←", vk: KeySender.VK_LEFT),
+            Special(KeyKind.Space, "English (US)", 3),
+            Special(KeyKind.Nav, "↑", vk: KeySender.VK_UP),
+            Special(KeyKind.Nav, "↓", vk: KeySender.VK_DOWN),
+            Special(KeyKind.Nav, "→", vk: KeySender.VK_RIGHT),
             Special(KeyKind.Enter, "↵", 1.5),
         },
     };
